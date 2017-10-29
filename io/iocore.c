@@ -79,19 +79,17 @@ static	UINT8		ioterminate[0x100];
 static void IOOUTCALL defout8(UINT port, REG8 dat) {
 
 #if !defined(DISABLE_SOUND)
-	if(cs4231.enable){
-		UINT	tmp;
+	UINT	tmp;
 
-		tmp = port - cs4231.port[0];
-		if (tmp < 8) {
-			cs4231io0_w8(port, dat);
-			return;
-		}
-		tmp = port - cs4231.port[5];
-		if (tmp < 2) {
-			cs4231io5_w8(port, dat);
-			return;
-		}
+	tmp = port - cs4231.port[0];
+	if (tmp < 8) {
+		cs4231io0_w8(port, dat);
+		return;
+	}
+	tmp = port - cs4231.port[5];
+	if (tmp < 2) {
+		cs4231io5_w8(port, dat);
+		return;
 	}
 #endif
 	if ((port & 0xf0ff) == 0x801e) {
@@ -104,17 +102,15 @@ static void IOOUTCALL defout8(UINT port, REG8 dat) {
 static REG8 IOINPCALL definp8(UINT port) {
 
 #if !defined(DISABLE_SOUND)
-	if(cs4231.enable){
-		UINT	tmp;
+	UINT	tmp;
 
-		tmp = port - cs4231.port[0];
-		if (tmp < 8) {
-			return(cs4231io0_r8(port));
-		}
-		tmp = port - cs4231.port[5];
-		if (tmp < 2) {
-			return(cs4231io5_r8(port));
-		}
+	tmp = port - cs4231.port[0];
+	if (tmp < 8) {
+		return(cs4231io0_r8(port));
+	}
+	tmp = port - cs4231.port[5];
+	if (tmp < 2) {
+		return(cs4231io5_r8(port));
 	}
 #endif
 	if ((port & 0xf0ff) == 0x801e) {
@@ -440,11 +436,7 @@ BRESULT iocore_build(void) {
 	}
 	sys->type = IOFUNC_SYS;
 	for (i=0; i<256; i++) {
-#ifdef SUPPORT_PC9821
 		if (!(i & (0x0c|(np2cfg.sysiomsk >> 8)))) { // PC-9821用 追加マスク(0x0c -> 0xff) np21w ver0.86 rev37
-#else
-		if (!(i & 0x0c)) {
-#endif
 			ioc->base[i] = sys;
 		}
 		else {
