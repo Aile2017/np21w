@@ -35,9 +35,6 @@
 #define IA32_CPU_CPU_H__
 
 #include "interface.h"
-#if defined(SUPPORT_FPU_SOFTFLOAT)
-#include "instructions/fpu/softfloat/softfloat.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -197,8 +194,7 @@ typedef struct {
 
 /* FPU */
 enum {
-	FPU_REG_NUM = 8,
-	XMM_REG_NUM = 8
+	FPU_REG_NUM = 8
 };
 
 typedef struct {
@@ -259,17 +255,14 @@ typedef enum {
 } FP_RND;
 
 typedef union {
-    floatx80 d;
-    double d64;
+    double d;
     struct {
         UINT32 lower;
         SINT32 upper;
-        SINT16 ext;
     } l;
     struct {
         UINT32 lower;
         UINT32 upper;
-        SINT16 ext;
     } ul;
     SINT64 ll;
 } FP_REG;
@@ -283,36 +276,6 @@ typedef struct {
     UINT32 d2;
 } FP_P_REG;
 
-typedef union {
-    struct {
-        UINT32 m1;
-        UINT32 m2;
-		UINT16 m3;
-    } ul32;
-    struct {
-        UINT32 m1;
-        UINT32 m2;
-		SINT16 m3;
-    } l32;
-    struct {
-		UINT64 m12;
-		UINT16 m3;
-    } ul64;
-    struct {
-		UINT64 m12;
-		SINT16 m3;
-    } l64;
-} FP_INT_REG;
-
-typedef union {
-    float f[4];
-    double d[2];
-    UINT8 ul8[16];
-    UINT16 ul16[8];
-    UINT32 ul32[4];
-    UINT64 ul64[2];
-} XMM_REG;
-
 typedef struct {
 #ifdef USE_FPU_ASM
 	unsigned int top;
@@ -322,24 +285,14 @@ typedef struct {
 	UINT8		pc;
 	UINT8		rc;
 	UINT8		dmy[1];
-//
-//#if defined(USE_FPU_ASM)
-//	FP_P_REG	p_reg[FPU_REG_NUM+1]; // R0 to R7	
-//#else
+
+#ifdef USE_FPU_ASM
+	FP_P_REG	p_reg[FPU_REG_NUM+1]; // R0 to R7	
+#else
 	FP_REG		reg[FPU_REG_NUM+1]; // R0 to R7	
-//#endif
+#endif
 	FP_TAG		tag[FPU_REG_NUM+1]; // R0 to R7
 	FP_RND		round;
-#ifdef SUPPORT_FPU_DOSBOX2 // XXX: 整数間だけ正確にするため用
-	FP_INT_REG	int_reg[FPU_REG_NUM+1];
-	UINT8		int_regvalid[FPU_REG_NUM+1];
-#endif
-#ifdef USE_SSE
-	XMM_REG		xmm_reg[XMM_REG_NUM+1]; // xmm0 to xmm7	
-#endif
-#ifdef USE_MMX
-	UINT8		mmxenable;
-#endif
 } FPU_STAT;
 
 #endif
@@ -380,20 +333,7 @@ typedef struct {
 	I386EXT		e;
 } I386CORE;
 
-typedef struct {
-	char cpu_vendor[16]; // ベンダー（12byte）
-	UINT32 cpu_family; // ファミリ
-	UINT32 cpu_model; // モデル
-	UINT32 cpu_stepping; // ステッピング
-	UINT32 cpu_feature; // 機能フラグ
-	UINT32 cpu_feature_ex; // 拡張機能フラグ
-	char cpu_brandstring[64]; // ブランド名（48byte）
-	
-	UINT8 fpu_type; // FPU種類
-} I386CPUID;
-
 extern I386CORE		i386core;
-extern I386CPUID	i386cpuid;
 
 #define	CPU_STATSAVE	i386core.s
 
@@ -419,71 +359,39 @@ extern I386CPUID	i386cpuid;
 
 extern sigjmp_buf	exec_1step_jmpbuf;
 
+
 /*
  * CPUID
  */
-/*** vendor ***/
-#define	CPU_VENDOR_INTEL		"GenuineIntel"
-#define	CPU_VENDOR_AMD			"AuthenticAMD"
-#define	CPU_VENDOR_AMD2			"AMDisbetter!"
-#define	CPU_VENDOR_CYRIX		"CyrixInstead"
-#define	CPU_VENDOR_NEXGEN		"NexGenDriven"
-#define	CPU_VENDOR_CENTAUR		"CentaurHauls"
-#define	CPU_VENDOR_TRANSMETA	"GenuineTMx86"
-#define	CPU_VENDOR_TRANSMETA2	"TransmetaCPU"
-#define	CPU_VENDOR_NSC			"Geode by NSC"
-#define	CPU_VENDOR_RISE			"RiseRiseRise"
-#define	CPU_VENDOR_UMC			"UMC UMC UMC "
-#define	CPU_VENDOR_SIS			"SiS SiS SiS "
-#define	CPU_VENDOR_VIA			"VIA VIA VIA "
-#define	CPU_VENDOR_NEKOPRO		"Neko Project"
+/* vendor */
+#define	CPU_VENDOR_1	0x756e6547	/* "Genu" */
+#define	CPU_VENDOR_2	0x49656e69	/* "ineI" */
+#define	CPU_VENDOR_3	0x6c65746e	/* "ntel" */
 
-// デフォルト設定
-#define	CPU_VENDOR		CPU_VENDOR_INTEL
+/* version */
+#if defined(USE_FPU)
+#if defined(USE_MMX)
+#define	CPU_FAMILY	6
+#define	CPU_MODEL	3	/* Pentium II */
+#define	CPU_STEPPING	3
+//#define	CPU_FAMILY	6
+//#define	CPU_MODEL	1	/* Pentium Pro */
+//#define	CPU_STEPPING	1
+#else
+#define	CPU_FAMILY	5
+#define	CPU_MODEL	2	/* Pentium */
+#define	CPU_STEPPING	5
+//#define	CPU_FAMILY	4
+//#define	CPU_MODEL	1	/* 486DX */
+//#define	CPU_STEPPING	3
+#endif
+#else
+#define	CPU_FAMILY	4
+#define	CPU_MODEL	2	/* 486SX */
+#define	CPU_STEPPING	3
+#endif
 
-//#define	CPU_VENDOR_1	0x756e6547	/* "Genu" */
-//#define	CPU_VENDOR_2	0x49656e69	/* "ineI" */
-//#define	CPU_VENDOR_3	0x6c65746e	/* "ntel" */
-
-/*** version ***/
-#define	CPU_PENTIUM_II_FAMILY		6
-#define	CPU_PENTIUM_II_MODEL		3	/* Pentium II */
-#define	CPU_PENTIUM_II_STEPPING		3
-
-#define	CPU_PENTIUM_PRO_FAMILY		6
-#define	CPU_PENTIUM_PRO_MODEL		1	/* Pentium Pro */
-#define	CPU_PENTIUM_PRO_STEPPING	1
-
-#define	CPU_MMX_PENTIUM_FAMILY		5
-#define	CPU_MMX_PENTIUM_MODEL		4	/* MMX Pentium */
-#define	CPU_MMX_PENTIUM_STEPPING	4
-
-#define	CPU_PENTIUM_FAMILY			5
-#define	CPU_PENTIUM_MODEL			2	/* Pentium */
-#define	CPU_PENTIUM_STEPPING		5
-
-#define	CPU_I486DX_FAMILY			4
-#define	CPU_I486DX_MODEL			1	/* 486DX */
-#define	CPU_I486DX_STEPPING			3
-
-#define	CPU_I486SX_FAMILY			4
-#define	CPU_I486SX_MODEL			2	/* 486SX */
-#define	CPU_I486SX_STEPPING			3
-
-#define	CPU_80286_FAMILY			2
-#define	CPU_80286_MODEL				1	/* 80286 */
-#define	CPU_80286_STEPPING			1
-
-#define	CPU_AMD_K6_2_FAMILY			5
-#define	CPU_AMD_K6_2_MODEL			8	/* AMD K6-2 */
-#define	CPU_AMD_K6_2_STEPPING		12
-
-#define	CPU_AMD_K6_III_FAMILY		5
-#define	CPU_AMD_K6_III_MODEL		9	/* AMD K6-III */
-#define	CPU_AMD_K6_III_STEPPING		1
-
-
-/*** feature ***/
+/* feature */
 #define	CPU_FEATURE_FPU		(1 << 0)
 #define	CPU_FEATURE_VME		(1 << 1)
 #define	CPU_FEATURE_DE		(1 << 2)
@@ -529,92 +437,13 @@ extern sigjmp_buf	exec_1step_jmpbuf;
 #define	CPU_FEATURE_TSC_FLAG	0
 #endif
 
-#if defined(USE_MMX)&&defined(USE_FPU)
+#if defined(USE_MMX)
 #define	CPU_FEATURE_MMX_FLAG	CPU_FEATURE_MMX|CPU_FEATURE_FXSR
 #else
 #define	CPU_FEATURE_MMX_FLAG	0
 #endif
 
-/* 使用できる機能全部 */
-#define	CPU_FEATURES_ALL	(CPU_FEATURE_FPU_FLAG|CPU_FEATURE_TSC_FLAG|CPU_FEATURE_CMOV|CPU_FEATURE_MMX_FLAG)
-
-#define	CPU_FEATURES_PENTIUM_II		(CPU_FEATURE_FPU|CPU_FEATURE_TSC|CPU_FEATURE_CMOV|CPU_FEATURE_FXSR|CPU_FEATURE_MMX)
-#define	CPU_FEATURES_PENTIUM_PRO	(CPU_FEATURE_FPU|CPU_FEATURE_TSC|CPU_FEATURE_CMOV|CPU_FEATURE_FXSR)
-#define	CPU_FEATURES_MMX_PENTIUM	(CPU_FEATURE_FPU|CPU_FEATURE_TSC|CPU_FEATURE_MMX)
-#define	CPU_FEATURES_PENTIUM		(CPU_FEATURE_FPU|CPU_FEATURE_TSC)
-#define	CPU_FEATURES_I486DX			(CPU_FEATURE_FPU)
-#define	CPU_FEATURES_I486SX			(0)
-#define	CPU_FEATURES_80286			(0)
-
-#define	CPU_FEATURES_AMD_K6_2		(CPU_FEATURE_FPU|CPU_FEATURE_TSC|CPU_FEATURE_MMX)
-#define	CPU_FEATURES_AMD_K6_III		(CPU_FEATURE_FPU|CPU_FEATURE_TSC|CPU_FEATURE_MMX)
-
-/*** extended feature ***/
-#define	CPU_FEATURE_EX_SYSCALL		(1 << 11)
-#define	CPU_FEATURE_EX_XDBIT		(1 << 20)
-#define	CPU_FEATURE_EX_EM64T		(1 << 29)
-#define	CPU_FEATURE_EX_3DNOW		(1 << 31)
-
-#if defined(USE_MMX)&&defined(USE_FPU)&&defined(USE_3DNOW)
-#define	CPU_FEATURE_EX_3DNOW_FLAG	CPU_FEATURE_EX_3DNOW
-#else
-#define	CPU_FEATURE_EX_3DNOW_FLAG	0
-#endif
-
-/* 使用できる機能全部 */
-#define	CPU_FEATURES_EX_ALL		(CPU_FEATURE_EX_3DNOW_FLAG)
-
-#define	CPU_FEATURES_EX_PENTIUM_II	(0)
-#define	CPU_FEATURES_EX_PENTIUM_PRO	(0)
-#define	CPU_FEATURES_EX_MMX_PENTIUM	(0)
-#define	CPU_FEATURES_EX_PENTIUM		(0)
-#define	CPU_FEATURES_EX_I486DX		(0)
-#define	CPU_FEATURES_EX_I486SX		(0)
-#define	CPU_FEATURES_EX_80286		(0)
-
-#define	CPU_FEATURES_EX_AMD_K6_2		(CPU_FEATURE_EX_3DNOW)
-#define	CPU_FEATURES_EX_AMD_K6_III		(CPU_FEATURE_EX_3DNOW)
-
-/* brand string */
-#define	CPU_BRAND_STRING_PENTIUM_II		"Intel(R) Pentium(R) II CPU "
-#define	CPU_BRAND_STRING_PENTIUM_PRO	"Intel(R) Pentium(R) Pro CPU "
-#define	CPU_BRAND_STRING_MMX_PENTIUM	"Intel(R) Pentium(R) with MMX "
-#define	CPU_BRAND_STRING_PENTIUM		"Intel(R) Pentium(R) Processor "
-#define	CPU_BRAND_STRING_I486DX			"Intel(R) i486DX Processor "
-#define	CPU_BRAND_STRING_I486SX			"Intel(R) i486SX Processor "
-#define	CPU_BRAND_STRING_80286			"Intel(R) 80286 Processor "
-#define	CPU_BRAND_STRING_AMD_K6_2		"AMD-K6(tm) 3D processor "
-#define	CPU_BRAND_STRING_AMD_K6_III		"AMD-K6(tm) 3D+ Processor "
-#define	CPU_BRAND_STRING_NEKOPRO		"Neko Processor " // カスタム設定
-#define	CPU_BRAND_STRING_NEKOPRO2		"Neko Processor II " // 全機能使用可能
-
-// CPUID デフォルト設定
-#if defined(USE_FPU)
-#if defined(USE_MMX)
-#define	CPU_FAMILY		CPU_PENTIUM_II_FAMILY
-#define	CPU_MODEL		CPU_PENTIUM_II_MODEL	/* Pentium II */
-#define	CPU_STEPPING	CPU_PENTIUM_II_STEPPING
-#define	CPU_FEATURES		CPU_FEATURES_PENTIUM_II
-#define	CPU_FEATURES_EX		CPU_FEATURES_EX_PENTIUM_II
-#define	CPU_BRAND_STRING	CPU_BRAND_STRING_PENTIUM_II
-#else
-#define	CPU_FAMILY		CPU_PENTIUM_FAMILY
-#define	CPU_MODEL		CPU_PENTIUM_MODEL	/* Pentium */
-#define	CPU_STEPPING	CPU_PENTIUM_STEPPING
-#define	CPU_FEATURES		CPU_FEATURES_PENTIUM
-#define	CPU_FEATURES_EX		CPU_FEATURES_EX_PENTIUM
-#define	CPU_BRAND_STRING	CPU_BRAND_STRING_PENTIUM
-#endif
-#else
-#define	CPU_FAMILY		CPU_I486SX_FAMILY
-#define	CPU_MODEL		CPU_I486SX_MODEL	/* 486SX */
-#define	CPU_STEPPING	CPU_I486SX_STEPPING
-#define	CPU_FEATURES		CPU_FEATURES_I486SX
-#define	CPU_FEATURES_EX		CPU_FEATURES_EX_I486SX
-#define	CPU_BRAND_STRING	CPU_BRAND_STRING_I486SX
-#endif
-
-
+#define	CPU_FEATURES		(CPU_FEATURE_CMOV|CPU_FEATURE_FPU_FLAG|CPU_FEATURE_TSC_FLAG|CPU_FEATURE_MMX_FLAG)
 
 #define	CPU_REGS_BYTEL(n)	CPU_STATSAVE.cpu_regs.reg[(n)].b.l
 #define	CPU_REGS_BYTEH(n)	CPU_STATSAVE.cpu_regs.reg[(n)].b.h
@@ -945,14 +774,6 @@ void dbg_printf(const char *str, ...);
 #define	FPU_STAT_TOP		FPU_STAT.top
 #define	FPU_STAT_PC		FPU_STAT.pc
 #define	FPU_STAT_RC		FPU_STAT.rc
-
-/*
- * SSE
- */
-#ifdef USE_SSE
-#define	SSE_MXCSR		CPU_MXCSR
-#define	SSE_XMMREG(i)	FPU_STAT.xmm_reg[i]
-#endif
 
 #if 0
 #define	FPU_ST(i)		FPU_STAT.reg[((i) + FPU_STAT_TOP) & 7]

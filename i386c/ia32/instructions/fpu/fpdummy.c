@@ -1,19 +1,20 @@
 #include "compiler.h"
 
+#ifndef USE_FPU
+
 #include "ia32/cpu.h"
 #include "ia32/ia32.mcr"
 #include "fp.h"
 
-void NOFPU_FPU_FINIT(void){
-	// Nothing to do
+void FPU_FXSAVE(void){
+	EXCEPTION(UD_EXCEPTION, 0);
 }
-
-void NOFPU_FPU_FXSAVERSTOR(void){
+void FPU_FXRSTOR(void){
 	EXCEPTION(UD_EXCEPTION, 0);
 }
 
 void
-NOFPU_ESC0(void)
+ESC0(void)
 {
 	UINT32 op, madr;
 
@@ -28,7 +29,7 @@ NOFPU_ESC0(void)
 }
 
 void
-NOFPU_ESC1(void)
+ESC1(void)
 {
 	UINT32 op, madr;
 
@@ -57,7 +58,7 @@ NOFPU_ESC1(void)
 }
 
 void
-NOFPU_ESC2(void)
+ESC2(void)
 {
 	UINT32 op, madr;
 
@@ -72,7 +73,7 @@ NOFPU_ESC2(void)
 }
 
 void
-NOFPU_ESC3(void)
+ESC3(void)
 {
 	UINT32 op, madr;
 
@@ -91,7 +92,7 @@ NOFPU_ESC3(void)
 }
 
 void
-NOFPU_ESC4(void)
+ESC4(void)
 {
 	UINT32 op, madr;
 
@@ -106,7 +107,7 @@ NOFPU_ESC4(void)
 }
 
 void
-NOFPU_ESC5(void)
+ESC5(void)
 {
 	UINT32 op, madr;
 
@@ -126,7 +127,7 @@ NOFPU_ESC5(void)
 }
 
 void
-NOFPU_ESC6(void)
+ESC6(void)
 {
 	UINT32 op, madr;
 
@@ -141,7 +142,7 @@ NOFPU_ESC6(void)
 }
 
 void
-NOFPU_ESC7(void)
+ESC7(void)
 {
 	UINT32 op, madr;
 
@@ -159,3 +160,5 @@ NOFPU_ESC7(void)
 		EXCEPTION(NM_EXCEPTION, 0);
 	}
 }
+
+#endif

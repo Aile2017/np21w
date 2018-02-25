@@ -44,7 +44,6 @@
 
 #include "ia32/instructions/fpu/fp.h"
 #include "ia32/instructions/mmx/mmx.h"
-#include "ia32/instructions/mmx/3dnow.h"
 
 /*
  * UNDEF OP
@@ -505,7 +504,7 @@ void (*insttable_1byte[2][256])(void) = {
 		CBW,			/* 98 */
 		CWD,
 		CALL16_Ap,
-		FPU_FWAIT,
+		FWAIT,
 		PUSHF_Fw,
 		POPF_Fw,
 		SAHF,
@@ -570,14 +569,14 @@ void (*insttable_1byte[2][256])(void) = {
 		AAD,
 		SALC,				/* undoc(8086) */
 		XLAT,
-		NOFPU_ESC0,			/* D8 */
-		NOFPU_ESC1,
-		NOFPU_ESC2,
-		NOFPU_ESC3,
-		NOFPU_ESC4,
-		NOFPU_ESC5,
-		NOFPU_ESC6,
-		NOFPU_ESC7,
+		ESC0,			/* D8 */
+		ESC1,
+		ESC2,
+		ESC3,
+		ESC4,
+		ESC5,
+		ESC6,
+		ESC7,
 
 		LOOPNE_Jb,		/* E0 */
 		LOOPE_Jb,
@@ -845,14 +844,14 @@ void (*insttable_1byte[2][256])(void) = {
 		AAD,
 		SALC,				/* undoc(8086) */
 		XLAT,
-		NOFPU_ESC0,			/* D8 */
-		NOFPU_ESC1,
-		NOFPU_ESC2,
-		NOFPU_ESC3,
-		NOFPU_ESC4,
-		NOFPU_ESC5,
-		NOFPU_ESC6,
-		NOFPU_ESC7,
+		ESC0,			/* D8 */
+		ESC1,
+		ESC2,
+		ESC3,
+		ESC4,
+		ESC5,
+		ESC6,
+		ESC7,
 
 		LOOPNE_Jb,		/* E0 */
 		LOOPE_Jb,
@@ -906,8 +905,8 @@ void (*insttable_2byte[2][256])(void) = {
 		undef_op,
 		UD2,
 		undef_op,
-		AMD3DNOW_PREFETCH,
-		AMD3DNOW_FEMMS,
+		undef_op,
+		undef_op,
 		undef_op,
 
 		undef_op,		/* 10 */
@@ -1077,7 +1076,7 @@ void (*insttable_2byte[2][256])(void) = {
 		BTS_EwGw,
 		SHRD_EwGwIb,
 		SHRD_EwGwCL,
-		NOFPU_FPU_FXSAVERSTOR,
+		FPU_FXSAVERSTOR,
 		IMUL_GwEw,
 
 		CMPXCHG_EbGb,		/* B0 */
@@ -1148,7 +1147,7 @@ void (*insttable_2byte[2][256])(void) = {
 		undef_op,
 		MMX_PXOR,
 
-		AMD3DNOW_F0,		/* F0 */
+		undef_op,		/* F0 */
 		MMX_PSLLW,
 		MMX_PSLLD,
 		MMX_PSLLQ,
@@ -1181,8 +1180,8 @@ void (*insttable_2byte[2][256])(void) = {
 		undef_op,
 		UD2,
 		undef_op,
-		AMD3DNOW_PREFETCH,
-		AMD3DNOW_FEMMS,
+		undef_op,
+		undef_op,
 		undef_op,
 
 		undef_op,		/* 10 */
@@ -1352,7 +1351,7 @@ void (*insttable_2byte[2][256])(void) = {
 		BTS_EdGd,
 		SHRD_EdGdIb,
 		SHRD_EdGdCL,
-		NOFPU_FPU_FXSAVERSTOR,
+		FPU_FXSAVERSTOR,
 		IMUL_GdEd,
 
 		CMPXCHG_EbGb,		/* B0 */
@@ -1423,7 +1422,7 @@ void (*insttable_2byte[2][256])(void) = {
 		undef_op,
 		MMX_PXOR,
 
-		AMD3DNOW_F0,		/* F0 */
+		undef_op,		/* F0 */
 		MMX_PSLLW,
 		MMX_PSLLD,
 		MMX_PSLLQ,
