@@ -32,20 +32,14 @@
 
 #if defined(USE_MMX) && defined(USE_FPU)
 
-#define CPU_MMXWORKCLOCK(a)	CPU_WORKCLOCK(6)
+#define CPU_MMXWORKCLOCK(a)	CPU_WORKCLOCK(8)
+
+static int mmxenable = 0; // XXX: 本当はFPU_STATあたりに入れるべき
 
 static INLINE void
 MMX_check_NM_EXCEPTION(){
-	// MMXなしならUD(無効オペコード例外)を発生させる
-	if(!(i386cpuid.cpu_feature & CPU_FEATURE_MMX)){
-		EXCEPTION(UD_EXCEPTION, 0);
-	}
-	// エミュレーションならUD(無効オペコード例外)を発生させる
-	if(CPU_CR0 & CPU_CR0_EM){
-		EXCEPTION(UD_EXCEPTION, 0);
-	}
 	// タスクスイッチ時にNM(デバイス使用不可例外)を発生させる
-	if (CPU_CR0 & CPU_CR0_TS) {
+	if (CPU_CR0 & (CPU_CR0_TS)) {
 		EXCEPTION(NM_EXCEPTION, 0);
 	}
 }
@@ -55,15 +49,11 @@ MMX_setTag(void)
 {
 	int i;
 	
-	if(!FPU_STAT.mmxenable){
-		FPU_STAT.mmxenable = 1;
+	if(!mmxenable){
+		mmxenable = 1;
 		//FPU_CTRLWORD = 0x27F;
 		for (i = 0; i < FPU_REG_NUM; i++) {
 			FPU_STAT.tag[i] = TAG_Valid;
-#ifdef SUPPORT_FPU_DOSBOX2
-			FPU_STAT.int_regvalid[i] = 0;
-#endif
-			FPU_STAT.reg[i].ul.ext = 0xffff;
 		}
 	}
 	FPU_STAT_TOP = 0;
@@ -79,16 +69,8 @@ MMX_EMMS(void)
 {
 	int i;
 	
-	// MMXなしならUD(無効オペコード例外)を発生させる
-	if(!(i386cpuid.cpu_feature & CPU_FEATURE_MMX)){
-		EXCEPTION(UD_EXCEPTION, 0);
-	}
-	// エミュレーションならUD(無効オペコード例外)を発生させる
-	if(CPU_CR0 & CPU_CR0_EM){
-		EXCEPTION(UD_EXCEPTION, 0);
-	}
 	// タスクスイッチ時にNM(デバイス使用不可例外)を発生させる
-	if ((CPU_CR0 & (CPU_CR0_TS)) || (CPU_CR0 & CPU_CR0_EM)) {
+	if (CPU_CR0 & (CPU_CR0_TS)) {
 		EXCEPTION(NM_EXCEPTION, 0);
 	}
 
@@ -99,7 +81,7 @@ MMX_EMMS(void)
 	FPU_STAT_TOP = 0;
 	FPU_STATUSWORD &= ~0x3800;
 	FPU_STATUSWORD |= (FPU_STAT_TOP&7)<<11;
-	FPU_STAT.mmxenable = 0;
+	mmxenable = 0;
 }
 
 // *********** MOV
