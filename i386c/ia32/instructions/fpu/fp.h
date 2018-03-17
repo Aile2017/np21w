@@ -32,10 +32,11 @@ extern "C" {
 	
 void fpu_initialize(void);
 
-void FWAIT(void);
+void FPU_FWAIT(void);
 
 #if defined(USE_FPU)
 #if defined(SUPPORT_FPU_DOSBOX)
+void DB_FPU_FINIT(void);
 void DB_FPU_FXSAVERSTOR(void);
 void DB_ESC0(void);
 void DB_ESC1(void);
@@ -47,6 +48,7 @@ void DB_ESC6(void);
 void DB_ESC7(void);
 #endif
 #if defined(SUPPORT_FPU_DOSBOX2)
+void DB2_FPU_FINIT(void);
 void DB2_FPU_FXSAVERSTOR(void);
 void DB2_ESC0(void);
 void DB2_ESC1(void);
@@ -58,6 +60,7 @@ void DB2_ESC6(void);
 void DB2_ESC7(void);
 #endif
 #if defined(SUPPORT_FPU_SOFTFLOAT)
+void SF_FPU_FINIT(void);
 void SF_FPU_FXSAVERSTOR(void);
 void SF_ESC0(void);
 void SF_ESC1(void);
@@ -71,6 +74,7 @@ void SF_ESC7(void);
 #endif
 
 // for i486SX
+void NOFPU_FPU_FINIT(void);
 void NOFPU_FPU_FXSAVERSTOR(void);
 void NOFPU_ESC0(void);
 void NOFPU_ESC1(void);
