@@ -767,11 +767,6 @@ BRESULT scrnmng_create(UINT8 scrnmode) {
 #ifdef SUPPORT_WAB
 		if (ddraw2->CreateSurface(&ddsd, &ddraw.wabsurf, NULL) != DD_OK) {
 			goto scre_err;
-		}else{
-			DDBLTFX	ddbf = {0};
-			ddbf.dwSize = sizeof(ddbf);
-			ddbf.dwFillColor = 0;
-			ddraw.wabsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
 		}
 #endif
 		if (bitcolor == 8) {
@@ -1349,29 +1344,17 @@ void scrnmng_updatefsres(void) {
 	RECT rect;
 	int width = scrnstat.width;
 	int height = scrnstat.height;
-	DDBLTFX	ddbf = {0};
-
 	rect.left = rect.top = 0;
 	rect.right = width;
 	rect.bottom = height;
 
-	ddbf.dwSize = sizeof(ddbf);
-	ddbf.dwFillColor = 0;
-
 	if((np2oscfg.fscrnmod & FSCRNMOD_SAMERES) && (g_scrnmode & SCRNMODE_FULLSCREEN)){
-		ddraw.wabsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
-		ddraw.backsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
 		clearoutscreen();
 		np2wab.lastWidth = 0;
 		np2wab.lastHeight = 0;
 		return;
 	}
-	if(scrnstat.width<100 || scrnstat.height<100){
-		ddraw.wabsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
-		ddraw.backsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
-		clearoutscreen();
-		return;
-	}
+	if(scrnstat.width<100 || scrnstat.height<100) return;
 	
 	if(np2wab.lastWidth!=width || np2wab.lastHeight!=height){
 		np2wab.lastWidth = width;
@@ -1400,8 +1383,6 @@ void scrnmng_updatefsres(void) {
 			}
 		}
 		clearoutscreen();
-		ddraw.wabsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
-		ddraw.backsurf->Blt(NULL, NULL, NULL, DDBLT_WAIT | DDBLT_COLORFILL, &ddbf);
 	}
 #endif
 }
@@ -1413,8 +1394,6 @@ void scrnmng_blthdc(HDC hdc) {
 	HDC hDCDD;
 	mt_wabdrawing = 0;
 	if (np2wabwnd.multiwindow) return;
-	if (mt_wabpausedrawing) return;
-	if (np2wab.wndWidth < 32 || np2wab.wndHeight < 32) return;
 	if (mt_wabpausedrawing) return;
 	if (ddraw.wabsurf != NULL) {
 		mt_wabdrawing = 1;

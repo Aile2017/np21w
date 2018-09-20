@@ -183,7 +183,7 @@ protected:
 private:
 	UINT8 m_enabled;			//!< 有効フラグ
 	UINT16 m_type;				//!< 機種設定
-	UINT8 m_fakecur;			//!< 仮ハードウェアカーソル
+	UINT16 m_fakecur;			//!< 仮ハードウェアカーソル
 	CWndProc m_chkenabled;		//!< ENABLED
 	CComboData m_cmbtype;		//!< 機種
 	CWndProc m_chkfakecur;		//!< FAKE HARDWARE CURSOR
@@ -224,7 +224,6 @@ static const CComboData::Entry s_type[] =
 	{MAKEINTRESOURCE(IDS_GD5430_WSN),		CIRRUS_98ID_WSN},
 	{MAKEINTRESOURCE(IDS_GD5430_GA98NB),	CIRRUS_98ID_GA98NB},
 	{MAKEINTRESOURCE(IDS_GD5430_96),		CIRRUS_98ID_96},
-	{MAKEINTRESOURCE(IDS_GD5430_AUTO_XE_WS_PCI),		CIRRUS_98ID_AUTO_XE_WS_PCI},
 	{MAKEINTRESOURCE(IDS_GD5430_AUTO_XE10_WABS),		CIRRUS_98ID_AUTO_XE10_WABS},
 	{MAKEINTRESOURCE(IDS_GD5430_AUTO_XE10_WSN2),		CIRRUS_98ID_AUTO_XE10_WSN2},
 	{MAKEINTRESOURCE(IDS_GD5430_AUTO_XE10_WSN4),		CIRRUS_98ID_AUTO_XE10_WSN4},
@@ -327,7 +326,7 @@ LRESULT CGD5430Page::WindowProc(UINT nMsg, WPARAM wParam, LPARAM lParam)
 }
 
 /**
- * 機種を設定
+ * I/O を設定
  * @param[in] cValue 設定
  */
 void CGD5430Page::SetWABType(UINT16 cValue)
@@ -336,7 +335,7 @@ void CGD5430Page::SetWABType(UINT16 cValue)
 }
 
 /**
- * 機種を取得
+ * I/O を取得
  * @return I/O
  */
 UINT16 CGD5430Page::GetWABType() const

@@ -453,6 +453,16 @@ REG8 MEMCALL memp_read8(UINT32 address) {
 		return(mem[address]);
 	}
 	else {
+		if(0xF8E80 <= address && address < 0xF8EC0){
+			printf("PCI (read8): %x ret %x", address, *((UINT8*)(mem+address)));
+		}
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (read8): %x ret %x", address, *((UINT8*)(mem+address)));
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (read8): %x");
+			return 0xff;//xxx[address - pcidev.bios32entrypoint];
+		}
 #if defined(SUPPORT_CL_GD5430)
 		if(np2clvga.enabled && cirrusvga_opaque){
 			UINT32 vramWndAddr = np2clvga.VRAMWindowAddr;
@@ -554,6 +564,16 @@ REG16 MEMCALL memp_read16(UINT32 address) {
 		return(LOADINTELWORD(mem + address));
 	}
 	else {
+		if(0xF8E80 <= address && address < 0xF8EC0){
+			printf("PCI (read8): %x ret %x", address, *((UINT8*)(mem+address)));
+		}
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (read16): %x ret %x", address, *((UINT16*)(mem+address)));
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (read16): %x", address);
+			return 0xffff;//*((UINT16*)(xxx + (address - pcidev.bios32entrypoint)));
+		}
 		if ((address + 1) & 0x7fff) {			// non 32kb boundary
 #if defined(SUPPORT_CL_GD5430)
 			if(np2clvga.enabled && cirrusvga_opaque){
@@ -641,7 +661,7 @@ REG16 MEMCALL memp_read16(UINT32 address) {
 
 UINT32 MEMCALL memp_read32(UINT32 address) {
 
-	//UINT32	pos;
+	UINT32	pos;
 	UINT32	ret;
 	
 	//if(0x400 <= address && address < 0x600){
@@ -662,6 +682,16 @@ UINT32 MEMCALL memp_read32(UINT32 address) {
 		return(LOADINTELDWORD(mem + address));
 	}
 	else{
+		if(0xF8E80 <= address && address < 0xF8EC0){
+			printf("PCI (read8): %x ret %x", address, *((UINT8*)(mem+address)));
+		}
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (read32): %x ret %x", address, *((UINT32*)(mem+address)));
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (read32): %x", address);
+			return 0xffffffff;//*((UINT32*)(xxx + (address - pcidev.bios32entrypoint)));
+		}
 		if ((address + 1) & 0x7fff) {			// non 32kb boundary
 #if defined(SUPPORT_CL_GD5430)
 			if(np2clvga.enabled && cirrusvga_opaque){
@@ -761,9 +791,6 @@ REG8 MEMCALL memp_read8_codefetch(UINT32 address) {
 		return(mem[address]);
 	}
 	else {
-		//if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
-		//	printf("BIOS32 (read8): %x");
-		//}
 		address = address & CPU_ADRSMASK;
 		if (address < USE_HIMEM) {
 			return(memfn0.rd8[address >> 15](address));
@@ -840,7 +867,7 @@ REG16 MEMCALL memp_read16_codefetch(UINT32 address) {
 
 UINT32 MEMCALL memp_read32_codefetch(UINT32 address) {
 
-	//UINT32	pos;
+	UINT32	pos;
 	UINT32	ret;
 	
 	if (address < (I286_MEMREADMAX - 3)) {
@@ -906,6 +933,13 @@ void MEMCALL memp_write8(UINT32 address, REG8 value) {
 		mem[address] = (UINT8)value;
 	}
 	else {
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (write8): %x ret %x", address, value);
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (write8): %x ret %x", address, value);
+			return;
+		}
 #if defined(SUPPORT_CL_GD5430)
 		if(np2clvga.enabled && cirrusvga_opaque){
 			UINT32 vramWndAddr = np2clvga.VRAMWindowAddr;
@@ -1005,6 +1039,13 @@ void MEMCALL memp_write16(UINT32 address, REG16 value) {
 		STOREINTELWORD(mem + address, value);
 	}
 	else{
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (write16): %x ret %x", address, value);
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (write16): %x ret %x", address, value);
+			return;
+		}
 		if ((address + 1) & 0x7fff) {			// non 32kb boundary
 #if defined(SUPPORT_CL_GD5430)
 			if(np2clvga.enabled && cirrusvga_opaque){
@@ -1097,7 +1138,7 @@ void MEMCALL memp_write16(UINT32 address, REG16 value) {
 
 void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 
-	//UINT32	pos;
+	UINT32	pos;
 	
 	//if(0x400 <= address && address < 0x600){
 	//	switch(address){
@@ -1112,6 +1153,13 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 		return;
 	}
 	else{
+		if(pcidev.bios32svcdir <= address && address < pcidev.bios32svcdir + 16){
+			printf("BIOS32 Service Directory (write32): %x ret %x", address, value);
+		}
+		if(pcidev.bios32entrypoint <= address && address < pcidev.bios32entrypoint + sizeof(pcidev.biosdata.data8)){
+			printf("BIOS32 (write32): %x ret %x", address, value);
+			return;
+		}
 		if ((address + 1) & 0x7fff) {			// non 32kb boundary
 #if defined(SUPPORT_CL_GD5430)
 			if(np2clvga.enabled && cirrusvga_opaque){

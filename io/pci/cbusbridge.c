@@ -13,17 +13,13 @@
 
 #include	"cbusbridge.h"
 
-#define GETCFGREG_B(reg, ofs)			PCI_GETCFGREG_B(reg, ofs)
-#define GETCFGREG_W(reg, ofs)			PCI_GETCFGREG_W(reg, ofs)
-#define GETCFGREG_D(reg, ofs)			PCI_GETCFGREG_D(reg, ofs)
+#define GETCFGREG_B(reg, ofs)			(*((UINT8*)((reg) + (ofs))))
+#define GETCFGREG_W(reg, ofs)			(*((UINT16*)((reg) + (ofs))))
+#define GETCFGREG_D(reg, ofs)			(*((UINT32*)((reg) + (ofs))))
 
-#define SETCFGREG_B(reg, ofs, value)	PCI_SETCFGREG_B(reg, ofs, value)
-#define SETCFGREG_W(reg, ofs, value)	PCI_SETCFGREG_W(reg, ofs, value)
-#define SETCFGREG_D(reg, ofs, value)	PCI_SETCFGREG_D(reg, ofs, value)
-
-#define SETCFGREG_B_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_B_MASK(reg, ofs, value, mask)
-#define SETCFGREG_W_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_W_MASK(reg, ofs, value, mask)
-#define SETCFGREG_D_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_D_MASK(reg, ofs, value, mask)
+#define SETCFGREG_B(reg, ofs, value)	(GETCFGREG_B(reg, ofs) = value)
+#define SETCFGREG_W(reg, ofs, value)	(GETCFGREG_W(reg, ofs) = value)
+#define SETCFGREG_D(reg, ofs, value)	(GETCFGREG_D(reg, ofs) = value)
 
 int pcidev_cbusbridge_deviceid = 6;
 
@@ -37,6 +33,7 @@ void pcidev_cbusbridge_reset(const NP2CFG *pConfig) {
 }
 
 void pcidev_cbusbridge_bind(void) {
+	
 	int devid = pcidev_cbusbridge_deviceid;
 
 	// PCI-Cバスブリッジ
@@ -85,10 +82,10 @@ void pcidev_cbusbridge_bind(void) {
 	//pcidev.devices[devid].cfgreg8[0x48] = 0x3f;
 	//pcidev.devices[devid].cfgreg8[0x4C] = 0x3e;
 	//pcidev.devices[devid].cfgreg8[0x4E] = 0x03;
-	pcidev.devices[devid].cfgreg8[0x59] = 9;
-	pcidev.devices[devid].cfgreg8[0x5a] = 10;
-	pcidev.devices[devid].cfgreg8[0x5b] = 11;
-	pcidev.devices[devid].cfgreg8[0x5d] = 13;
+	//pcidev.devices[devid].cfgreg8[0x59] = 9;
+	//pcidev.devices[devid].cfgreg8[0x5a] = 10;
+	//pcidev.devices[devid].cfgreg8[0x5b] = 11;
+	//pcidev.devices[devid].cfgreg8[0x5d] = 13;
 	//SETCFGREG_D(pcidev.devices[devid].cfgreg8, 0x50, 0x00EF0010);
 	//SETCFGREG_D(pcidev.devices[devid].cfgreg8, 0x54, 0xFFFBFFFA);
 	//SETCFGREG_D(pcidev.devices[devid].cfgreg8, 0x58, 0xFFFEFFFE);
@@ -96,7 +93,7 @@ void pcidev_cbusbridge_bind(void) {
 	pcidev.devices[devid].cfgreg8[0x60] = 0x03;//0x80;//0x03;
 	pcidev.devices[devid].cfgreg8[0x61] = 0x05;//0x80;//0x05;
 	pcidev.devices[devid].cfgreg8[0x62] = 0x06;//0x80;//0x06;
-	pcidev.devices[devid].cfgreg8[0x63] = 0x0c;//0x80;//0x0c;
+	pcidev.devices[devid].cfgreg8[0x63] = 0x80;//0x0c;//0x80;//0x0c;
 
 	//// PCI-Cバスブリッジ（違うバージョン）
 	//ZeroMemory(pcidev.devices+devid, sizeof(_PCIDEVICE));

@@ -17,7 +17,7 @@ public:
 	bool Start();
 	void Stop();
 	bool Restart();
-	void SetStackSize(unsigned int nStackSize);
+	void SetStackSize(size_t nStackSize);
 	static void Delay(unsigned int usec);
 
 protected:
@@ -28,7 +28,7 @@ private:
 	DWORD m_dwThreadId;			//!< スレッド ID
 	bool m_bAbort;				//!< 中断フラグ
 	bool m_bDone;				//!< 完了フラグ
-	unsigned int m_nStackSize;		//!< スタック サイズ
+	size_t m_nStackSize;		//!< スタック サイズ
 	//static DWORD __stdcall ThreadProc(LPVOID pParam);
 	static unsigned int __stdcall ThreadProc(LPVOID pParam);
 };
@@ -37,7 +37,7 @@ private:
  * スタック サイズの設定
  * @param[in] nStackSize スタック サイズ
  */
-inline void CThreadBase::SetStackSize(unsigned int nStackSize)
+inline void CThreadBase::SetStackSize(size_t nStackSize)
 {
 	m_nStackSize = nStackSize;
 }
