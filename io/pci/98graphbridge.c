@@ -13,15 +13,19 @@
 
 #include	"98graphbridge.h"
 
-#define GETCFGREG_B(reg, ofs)			(*((UINT8*)((reg) + (ofs))))
-#define GETCFGREG_W(reg, ofs)			(*((UINT16*)((reg) + (ofs))))
-#define GETCFGREG_D(reg, ofs)			(*((UINT32*)((reg) + (ofs))))
+#define GETCFGREG_B(reg, ofs)			PCI_GETCFGREG_B(reg, ofs)
+#define GETCFGREG_W(reg, ofs)			PCI_GETCFGREG_W(reg, ofs)
+#define GETCFGREG_D(reg, ofs)			PCI_GETCFGREG_D(reg, ofs)
 
-#define SETCFGREG_B(reg, ofs, value)	(GETCFGREG_B(reg, ofs) = value)
-#define SETCFGREG_W(reg, ofs, value)	(GETCFGREG_W(reg, ofs) = value)
-#define SETCFGREG_D(reg, ofs, value)	(GETCFGREG_D(reg, ofs) = value)
+#define SETCFGREG_B(reg, ofs, value)	PCI_SETCFGREG_B(reg, ofs, value)
+#define SETCFGREG_W(reg, ofs, value)	PCI_SETCFGREG_W(reg, ofs, value)
+#define SETCFGREG_D(reg, ofs, value)	PCI_SETCFGREG_D(reg, ofs, value)
 
-int pcidev_98graphbridge_deviceid = 2;
+#define SETCFGREG_B_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_B_MASK(reg, ofs, value, mask)
+#define SETCFGREG_W_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_W_MASK(reg, ofs, value, mask)
+#define SETCFGREG_D_MASK(reg, ofs, value, mask)	PCI_SETCFGREG_D_MASK(reg, ofs, value, mask)
+
+int pcidev_98graphbridge_deviceid = 7;
 
 void pcidev_98graphbridge_cfgreg_w(UINT32 devNumber, UINT8 funcNumber, UINT8 cfgregOffset, UINT8 sizeinbytes, UINT32 value){
 
@@ -39,6 +43,7 @@ void pcidev_98graphbridge_bind(void) {
 	// 98グラフィックバスブリッジ
 	ZeroMemory(pcidev.devices+devid, sizeof(_PCIDEVICE));
 	pcidev.devices[devid].enable = 1;
+	pcidev.devices[devid].skipirqtbl = 1;
 	pcidev.devices[devid].regwfn = &pcidev_98graphbridge_cfgreg_w;
 	pcidev.devices[devid].header.vendorID = 0x1033;
 	pcidev.devices[devid].header.deviceID = 0x0009;
@@ -63,6 +68,12 @@ void pcidev_98graphbridge_bind(void) {
 	pcidev.devices[devid].headerrom.classcode[0] = 0xff;
 	pcidev.devices[devid].headerrom.classcode[1] = 0xff;
 	pcidev.devices[devid].headerrom.classcode[2] = 0xff;
+	pcidev.devices[devid].headerrom.baseaddrregs[0] = 0xffffffff;
+	pcidev.devices[devid].headerrom.baseaddrregs[1] = 0xffffffff;
+	pcidev.devices[devid].headerrom.baseaddrregs[2] = 0xffffffff;
+	pcidev.devices[devid].headerrom.baseaddrregs[3] = 0xffffffff;
+	pcidev.devices[devid].headerrom.baseaddrregs[4] = 0xffffffff;
+	pcidev.devices[devid].headerrom.baseaddrregs[5] = 0xffffffff;
 	memset(&(pcidev.devices[devid].headerrom), 0xff, sizeof(_PCICSH));
 }
 

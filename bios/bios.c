@@ -33,8 +33,7 @@
 
 static const char neccheck[] = "Copyright (C) 1983 by NEC Corporation";
 
-//static const char pcibios_BIOS32SD[16] = {0x5F, 0x33, 0x32, 0x5F, 0x12, 0x56, 0x0F, 0x00, 0x00, 0x01, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00};
-static const char pcibios_BIOS32SD[16] = {0};
+//static char pcibios_BIOS32SD[16] = {0};
 
 typedef struct {
 	UINT8	port;
@@ -188,6 +187,8 @@ static void bios_reinitbyswitch(void) {
 		mem[0x05ba] = (sxsi_getdevtype(3)==SXSIDEV_HDD ? 0x8 : 0x0)|(sxsi_getdevtype(2)==SXSIDEV_HDD ? 0x4 : 0x0)|
 					  (sxsi_getdevtype(1)==SXSIDEV_HDD ? 0x2 : 0x0)|(sxsi_getdevtype(0)==SXSIDEV_HDD ? 0x1 : 0x0);
 	}
+	
+	mem[0x5B8] = 0x00; // No C-Bus PnP boards
 
 	mem[0x45B] |= 0x80; // XXX: TEST OUT 5Fh,AL wait
 #endif
@@ -196,7 +197,7 @@ static void bios_reinitbyswitch(void) {
 #endif
 	
 #if defined(SUPPORT_PCI)
-	mem[0xF8E80+0x0004] |= 0x20;
+	mem[0xF8E80+0x0004] |= 0x2c;
 #endif
 	
 #if defined(SUPPORT_HRTIMER)
@@ -270,7 +271,7 @@ void bios_initialize(void) {
 	BOOL	biosrom;
 	OEMCHAR	path[MAX_PATH];
 	FILEH	fh;
-	UINT	i;
+	UINT	i, j;
 	UINT32	tmp;
 	UINT	pos;
 
@@ -296,20 +297,6 @@ void bios_initialize(void) {
 				break;
 			}
 		}
-#if defined(SUPPORT_PCI)
-		// PCI BIOS32 Service Directoryを探す
-		for (i=0; i<0x10000; i+=0x10) {
-			tmp = LOADINTELDWORD(mem + 0xf0000 + i);
-			if (tmp == 0x5F33325F) { // "_32_"
-				TRACEOUT(("found BIOS32 Service Directory at %.5x", 0xf0000 + i));
-				CopyMemory(mem + 0xf0000 + i, pcibios_BIOS32SD, sizeof(pcibios_BIOS32SD)); // 潰す
-				break;
-			}
-		}
-		if(i==0x10000){
-			TRACEOUT(("BIOS32 Service Directory not found."));
-		}
-#endif
 	}
 	else {
 		CopyMemory(mem + 0x0e8000, nosyscode, sizeof(nosyscode));
@@ -406,7 +393,55 @@ void bios_initialize(void) {
 
 	CopyMemory(mem + 0x1c0000, mem + ITF_ADRS, 0x08000);
 	CopyMemory(mem + 0x1e8000, mem + 0x0e8000, 0x10000);
-
+	
+#if defined(SUPPORT_PCI)
+	// PCI BIOS32 Service Directoryを探す
+	for (i=0; i<0x10000; i+=0x4) {
+		tmp = LOADINTELDWORD(mem + 0xf0000 + i);
+		if (tmp == 0x5F32335F) { // "_32_"
+			UINT8 checksum = 0;
+			for(j=0;j<16;j++){
+				checksum += mem[0xf0000 + i + j];
+			}
+			if(checksum==0){
+				// 発見した場合はその位置を使う
+				TRACEOUT(("found BIOS32 Service Directory at %.5x", 0xf0000 + i));
+				pcidev.bios32svcdir = 0xf0000 + i;
+				pcidev_updateBIOS32data();
+				break;
+			}
+		}
+	}
+	if(i==0x10000){
+		int emptyflag = 0;
+		TRACEOUT(("BIOS32 Service Directory not found."));
+		
+		// PCI BIOS32 Service Directoryを割り当てる
+		// XXX: 多分この辺なら空いてるだろーということで･･･
+		pcidev.bios32svcdir = 0xffa00;
+		for(i=0;i<0x400;i+=0x10){
+			emptyflag = 1;
+			// 16byte分空いてるかチェック（0だからといって空いてるとは限らないけど･･･）
+			for(j=0;j<16;j++){
+				if(mem[pcidev.bios32svcdir+i+j] != 0){
+					emptyflag = 0;
+				}
+			}
+			if(emptyflag){
+				// BIOS32 Service Directoryを置く
+				TRACEOUT(("Allocate BIOS32 Service Directory at 0x%.5x", pcidev.bios32svcdir));
+				pcidev.bios32svcdir += i;
+				pcidev_updateBIOS32data();
+				break;
+			}
+		}
+		if(i==0x400){
+			// 空きがないのでBIOS32 Service Directoryを置けず･･･
+			TRACEOUT(("Error: Cannot allocate memory for BIOS32 Service Directory."));
+			pcidev.bios32svcdir = 0;
+		}
+	}
+#endif
 }
 
 static void bios_itfcall(void) {
@@ -534,6 +569,8 @@ UINT MEMCALL biosfunc(UINT32 adrs) {
 #if defined(SUPPORT_PCI)
 			if(CPU_AH == 0xb1){
 				bios0x1a_pci();
+			}else if(CPU_AH == 0xb4){
+				bios0x1a_pcipnp();
 			}else
 #endif
 			{
@@ -592,3 +629,14 @@ UINT MEMCALL biosfunc(UINT32 adrs) {
 	return(0);
 }
 
+#ifdef SUPPORT_PCI
+UINT MEMCALL bios32func(UINT32 adrs) {
+	
+	// アドレスがBIOS32 Entry Pointなら処理
+	if (pcidev.bios32entrypoint && adrs == pcidev.bios32entrypoint) {
+		CPU_REMCLOCK -= 200;
+		bios0x1a_pci_part(1);
+	}
+	return(0);
+}
+#endif
