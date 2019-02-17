@@ -96,6 +96,11 @@
 #include "Dbt.h"
 #endif
 
+#if defined(SUPPORT_IA32_HAXM)
+#include	"i386hax/haxfunc.h"
+#include	"i386hax/haxcore.h"
+#endif
+
 #include	<process.h>
 
 #ifdef BETA_RELEASE
@@ -2817,9 +2822,13 @@ static void framereset(UINT cnt) {
 static void processwait(UINT cnt) {
 
 	UINT count = timing_getcount();
+
 	if (count+lateframecount >= cnt) {
 		lateframecount = lateframecount + count - cnt;
 		if(lateframecount > np2oscfg.cpustabf) lateframecount = np2oscfg.cpustabf;
+#if defined(SUPPORT_IA32_HAXM)
+		np2haxcore.hltflag = 0;
+#endif
 		timing_setcount(0);
 		framereset(cnt);
 	}
@@ -3185,7 +3194,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #endif
 #endif
 #endif
-
+	
 	winloc_InitDwmFunc();
 
 	WM_QueryCancelAutoPlay = RegisterWindowMessage(_T("QueryCancelAutoPlay"));
@@ -3492,8 +3501,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 				}
 				DispatchMessage(&msg);
 			}
-			else {
-				if (np2oscfg.NOWAIT) {
+			/*else */{
+				UINT8 hurryup = 0;
+#if defined(SUPPORT_IA32_HAXM)
+				hurryup = np2haxcore.hurryup;
+#endif
+				if (np2oscfg.NOWAIT || hurryup) {
 					ExecuteOneFrame(framecnt == 0);
 					if (np2oscfg.DRAW_SKIP) {		// nowait frame skip
 						framecnt++;
@@ -3632,6 +3645,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 	TRACETERM();
 	_MEM_USED(TEXT("report.txt"));
 	dosio_term();
-
+	
 	return((int)msg.wParam);
 }
