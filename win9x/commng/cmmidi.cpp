@@ -364,7 +364,6 @@ UINT CComMidi::Write(UINT8 cData)
 				case 0xc0:
 				case 0xd0:
 					m_nMidiCtrl = MIDICTRL_2BYTES;
-					m_cLastData = cData;
 					break;
 
 				case 0x80:
@@ -415,23 +414,7 @@ UINT CComMidi::Write(UINT8 cData)
 			// running status
 			m_sBuffer[0] = m_cLastData;
 			m_nIndex = 1;
-			switch (m_cLastData & 0xf0)
-			{
-				case 0xc0:
-				case 0xd0:
-					m_nMidiCtrl = MIDICTRL_2BYTES;
-					break;
-
-				case 0x80:
-				case 0x90:
-				case 0xa0:
-				case 0xb0:
-				case 0xe0:
-					m_nMidiCtrl = MIDICTRL_3BYTES;
-					break;
-				default:
-					return 1;
-			}
+			m_nMidiCtrl = MIDICTRL_3BYTES;
 		}
 	}
 	m_sBuffer[m_nIndex] = cData;
