@@ -12,7 +12,6 @@
 
 //! インスタンス
 static CDebugUtyView* g_np2view[NP2VIEW_MAX];
-static CDebugUtyView* g_np2view_closed[NP2VIEW_MAX];
 
 //! ビュー クラス名
 static const TCHAR s_szViewClass[] = TEXT("NP2-ViewWindow");
@@ -35,7 +34,6 @@ void CDebugUtyView::Initialize(HINSTANCE hInstance)
 	sm_dwLastTick = ::GetTickCount();
 
 	ZeroMemory(g_np2view, sizeof(g_np2view));
-	ZeroMemory(g_np2view_closed, sizeof(g_np2view_closed));
 
 	WNDCLASS np2vc;
 	np2vc.style = CS_BYTEALIGNCLIENT | CS_HREDRAW | CS_VREDRAW;
@@ -63,11 +61,6 @@ void CDebugUtyView::New()
 		{
 			continue;
 		}
-		if (g_np2view_closed[i] != NULL)
-		{
-			delete g_np2view_closed[i];
-			g_np2view_closed[i] = NULL;
-		}
 
 		CDebugUtyView* view = new CDebugUtyView;
 		g_np2view[i] = view;
@@ -78,20 +71,6 @@ void CDebugUtyView::New()
 			view->UpdateWindow();
 		}
 		break;
-	}
-}
-/**
- * メモリ破棄
- */
-void CDebugUtyView::DisposeAllClosedWindow()
-{
-	for (size_t i = 0; i < _countof(g_np2view_closed); i++)
-	{
-		if (g_np2view_closed[i] != NULL)
-		{
-			delete g_np2view_closed[i];
-			g_np2view_closed[i] = NULL;
-		}
 	}
 }
 
@@ -105,7 +84,6 @@ void CDebugUtyView::AllClose()
 		CDebugUtyView* lpView = g_np2view[i];
 		if (lpView != NULL)
 		{
-			lpView->DetachDebugView();
 			lpView->DestroyWindow();
 		}
 	}
@@ -151,14 +129,6 @@ CDebugUtyView::CDebugUtyView()
  */
 CDebugUtyView::~CDebugUtyView()
 {
-	DetachDebugView();
-}
-
-/**
- * デバッグ表示ルーチンから切り離す
- */
-void CDebugUtyView::DetachDebugView()
-{
 	if (m_lpItem)
 	{
 		delete m_lpItem;
@@ -169,7 +139,6 @@ void CDebugUtyView::DetachDebugView()
 	{
 		if (g_np2view[i] == this)
 		{
-			g_np2view_closed[i] = g_np2view[i]; // 閉じられたウィンドウとして登録
 			g_np2view[i] = NULL;
 			UpdateActive();
 			break;
@@ -281,7 +250,6 @@ LRESULT CDebugUtyView::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 
 		case WM_CLOSE:
-			DetachDebugView();
 			DestroyWindow();
 			break;
 
@@ -307,7 +275,6 @@ BOOL CDebugUtyView::OnCommand(WPARAM wParam, LPARAM lParam)
 			break;
 
 		case IDM_VIEWWINCLOSE:
-			DetachDebugView();
 			DestroyWindow();
 			break;
 

@@ -126,43 +126,19 @@ static	TCHAR		szClassName[] = _T("NP2-MainWindow");
 						0, 0, KEY_UNKNOWN, 0, 0,
 						0, 0, 0, {1, 2, 2, 1},
 						{5, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 #if defined(SUPPORT_SMPU98)
 						{5, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 						{5, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 #endif
 						{0, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 						{0, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 						{0, 0, 0x3e, 19200,
-						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0, 
-#if defined(SUPPORT_NAMED_PIPE)
-						 OEMTEXT("NP2-NamedPipe"), OEMTEXT("."),
-#endif
-						},
+						 OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), OEMTEXT(""), 0},
 						0xffffff, 0xffbf6a, 0, 0,
 						0, 1,
 						0, 0,
@@ -187,8 +163,8 @@ static	TCHAR		szClassName[] = _T("NP2-MainWindow");
 						0, 0, 0, TCMODE_DEFAULT, 0, 1, 
 						0,
 #if defined(SUPPORT_WACOM_TABLET)
-						0,
-#endif	// defined(SUPPORT_WACOM_TABLET)
+						0
+#endif	// defined(SUPPORT_VSTi)
 					};
 
 		OEMCHAR		fddfolder[MAX_PATH];
@@ -2563,20 +2539,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				}
 			}
 			break;
-			
-#if defined(SUPPORT_SCRN_DIRECT3D)
-		case WM_SETFOCUS:
-			if (scrnmng_isfullscreen() && scrnmng_current_drawtype==DRAWTYPE_DIRECT3D && !np2oscfg.d3d_exclusive && !winui_en) {
-				ShowWindow( hWnd, SW_RESTORE );
-			}
-			break;
-
-		case WM_KILLFOCUS:
-			if (scrnmng_isfullscreen() && scrnmng_current_drawtype==DRAWTYPE_DIRECT3D && !np2oscfg.d3d_exclusive && !winui_en) {
-				ShowWindow( hWnd, SW_MINIMIZE );
-			}
-			break;
-#endif
 
 		case WM_CLOSE:
 			b = FALSE;
@@ -2595,7 +2557,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			}
 			if (b) {
 				CDebugUtyView::AllClose();
-				CDebugUtyView::DisposeAllClosedWindow();
 				DestroyWindow(hWnd);
 			}
 			break;
@@ -2861,7 +2822,6 @@ LRESULT CALLBACK LowLevelKeyboardProc(INT nCode, WPARAM wParam, LPARAM lParam)
 						}
 						return 1;
 					}
-#ifdef HOOK_SYSKEY
 					else if ((pkbhs->vkCode == VK_SNAPSHOT) && (np2oscfg.syskhook)) {
 						// PrintScreen -> COPY
 						switch((int)wParam){
@@ -2875,7 +2835,6 @@ LRESULT CALLBACK LowLevelKeyboardProc(INT nCode, WPARAM wParam, LPARAM lParam)
 							break;
 						}
 					}
-#endif
 				}
 				break;
 			}
@@ -3295,7 +3254,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #ifdef _DEBUG
 	// 使うときはstdlib.hとcrtdbg.hをインクルードする
 	_CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-	//_CrtSetBreakAlloc(499);
+	//_CrtSetBreakAlloc(504);
 #endif
 
 #if defined(SUPPORT_WIN2000HOST)

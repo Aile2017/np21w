@@ -11,9 +11,20 @@
 
 #include <math.h>
 #include "pccore.h"
-#include "iocore.h"
 #include "mousemng.h"
 #include "scrnmng.h"
+#include "sysport.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern	_SYSPORT	sysport;
+
+void pic_setirq(REG8 irq);
+
+#ifdef __cplusplus
+}
+#endif
 
 typedef CComWacom *CMWACOM;
 
@@ -63,7 +74,6 @@ void cmwacom_finalize(void){
 	if(g_wacom_initialized){
 		UnloadWintab();
 	}
-	g_cmwacom = NULL;
 	g_wacom_initialized = false;
 }
 bool cmwacom_skipMouseEvent(void){
@@ -83,46 +93,51 @@ void cmwacom_setNCControl(bool enable){
 }
 
 LRESULT CALLBACK tabletWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam){
-	if(g_cmwacom){
-		switch (msg) {
-		case WT_PACKET:
-			if(g_cmwacom->HandlePacketMessage(hWnd, msg, wParam, lParam)){
-				return FALSE;
-			}
-			break;
-		case WM_MOUSEMOVE:
-			if(g_cmwacom->HandleMouseMoveMessage(hWnd, msg, wParam, lParam)){
-				return FALSE;
-			}
-			break;
-		case WM_LBUTTONUP:
-		case WM_RBUTTONUP:
-			if(g_cmwacom->HandleMouseUpMessage(hWnd, msg, wParam, lParam)){
-				return FALSE;
-			}
-			break;
-		case WM_LBUTTONDOWN:
-		case WM_RBUTTONDOWN:
-			if(g_cmwacom->HandleMouseDownMessage(hWnd, msg, wParam, lParam)){
-				return FALSE;
-			}
-			break;
-		case WM_ACTIVATE:
-			if (wParam) {
-				gpWTOverlap(g_cmwacom->GetHTab(), TRUE);
-				gpWTEnable(g_cmwacom->GetHTab(), TRUE);
-				{
-					SINT16 x, y;
-					mousemng_getstat(&x, &y, false);
-					mousemng_setstat(x, y, uPD8255A_LEFTBIT|uPD8255A_RIGHTBIT);
-				}
-				g_cmwacom->m_skiptabletevent = 20;
-			}else{
-				gpWTEnable(g_cmwacom->GetHTab(), FALSE);
-			}
-			break;
+    switch (msg) {
+	case WT_PACKET:
+		if(g_cmwacom->HandlePacketMessage(hWnd, msg, wParam, lParam)){
+			return FALSE;
 		}
-	}
+		break;
+	case WM_MOUSEMOVE:
+		if(g_cmwacom->HandleMouseMoveMessage(hWnd, msg, wParam, lParam)){
+			return FALSE;
+		}
+		break;
+	case WM_LBUTTONUP:
+	case WM_RBUTTONUP:
+		if(g_cmwacom->HandleMouseUpMessage(hWnd, msg, wParam, lParam)){
+			return FALSE;
+		}
+		break;
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+		if(g_cmwacom->HandleMouseDownMessage(hWnd, msg, wParam, lParam)){
+			return FALSE;
+		}
+		break;
+	case WM_ACTIVATE:
+		if (wParam) {
+			//if(g_cmwacom){
+			//	CMWACOM_CONFIG cfg;
+			//	g_cmwacom->GetConfig(&cfg);
+			//	if(!cfg.enable){
+			//		break;
+			//	}
+			//}
+			gpWTOverlap(g_cmwacom->GetHTab(), TRUE);
+			gpWTEnable(g_cmwacom->GetHTab(), TRUE);
+			{
+				SINT16 x, y;
+				mousemng_getstat(&x, &y, false);
+				mousemng_setstat(x, y, uPD8255A_LEFTBIT|uPD8255A_RIGHTBIT);
+			}
+			g_cmwacom->m_skiptabletevent = 20;
+		}else{
+			gpWTEnable(g_cmwacom->GetHTab(), FALSE);
+		}
+		break;
+    }
 	return CallWindowProc(g_lpfnDefProc, hWnd, msg, wParam, lParam);
 }
 
@@ -291,7 +306,7 @@ void CComWacom::InitializeTabletDevice(){
 		m_maxX = lcMine.lcOutExtX;
 		m_maxY = lcMine.lcOutExtY;
 	}
-	m_hTab = gpWTOpenA(m_hwndMain, &lcMine, GetForegroundWindow()==m_hwndMain ? TRUE : FALSE);
+	m_hTab = gpWTOpenA(m_hwndMain, &lcMine, TRUE);
 	if (!m_hTab)
 	{
 		return;
@@ -339,6 +354,7 @@ void CComWacom::FinalizeTabletDevice(){
 		}
 		gpWTClose(m_hTab);
 		m_hTab = NULL;
+		g_cmwacom = NULL;
 		g_wacom_allocated = false;
 	}
 }
@@ -598,16 +614,9 @@ void CComWacom::SetNCControl(bool enable){
 bool CComWacom::SendDataToReadBuffer(const char *data, int len){
 	int bufused = (m_sBuffer_wpos - m_sBuffer_rpos) & (WACOM_BUFFER - 1);
 	if(bufused + len >= WACOM_BUFFER){
-#if defined(SUPPORT_RS232C_FIFO)
-		if(rs232cfifo.port138 & 0x1){
-			// 催促しない
-		}else 
-#endif
-		{
-			// Buffer Full
-			if (sysport.c & 1) {
-				pic_setirq(4); // XXX: 催促
-			}
+		// Buffer Full
+		if (sysport.c & 1) {
+			pic_setirq(4); // XXX: 催促
 		}
 		return false;
 	}
@@ -647,20 +656,20 @@ UINT CComWacom::Read(UINT8* pData)
 		return 1;
 	}else{
 		nodatacounter++;
-		//// XXX: 長期間データがないとWin9xでおかしくなるようなので暫定対策
-		//if(m_config.mode19200 && nodatacounter > 256){
-		//	if(m_lastdatalen > 0){
-		//		char buf[10];
-		//		memcpy(buf, m_lastdata, 7);
-		//		if(m_rawButtons != 0) {
-		//			buf[0] |= 0x40;
-		//		}else{
-		//			buf[0] &= ~0x40;
-		//		}
-		//		if(m_config.start) SendDataToReadBuffer(buf, m_lastdatalen);
-		//	}
-		//	nodatacounter = 0;
-		//}
+		// XXX: 長期間データがないとWin9xでおかしくなるようなので暫定対策
+		if(m_config.mode19200 && nodatacounter > 256){
+			if(m_lastdatalen > 0){
+				char buf[10];
+				memcpy(buf, m_lastdata, 7);
+				if(m_rawButtons != 0) {
+					buf[0] |= 0x40;
+				}else{
+					buf[0] &= ~0x40;
+				}
+				if(m_config.start) SendDataToReadBuffer(buf, m_lastdatalen);
+			}
+			nodatacounter = 0;
+		}
 		g_lastPosValid = false;
 	}
 	return 0;
@@ -728,21 +737,7 @@ UINT CComWacom::Write(UINT8 cData)
 			}else if(strncmp(m_cmdbuf, "ST", 2)==0){
 				m_config.start = true; // Start sending coordinates
 			}else if(strncmp(m_cmdbuf, "@ST", 2)==0){
-				// Start sending coordinates & get current position
-				char data[] = {0xA0};
-				if(m_lastdatalen > 0){
-					char buf[10];
-					memcpy(buf, m_lastdata, 7);
-					if(m_rawButtons != 0) {
-						buf[0] |= 0x40;
-					}else{
-						buf[0] &= ~0x40;
-					}
-					SendDataToReadBuffer(buf, m_lastdatalen);
-				}else{
-					SendDataToReadBuffer(data, sizeof(data));
-				}
-				m_config.start = true;
+				m_config.start = true; // Start sending coordinates
 			}else if(strncmp(m_cmdbuf, "SP", 2)==0){
 				m_config.start = false; // Stop sending coordinates
 			}else if(strcmp(m_cmdbuf, "~R")==0){
@@ -795,28 +790,13 @@ UINT CComWacom::Write(UINT8 cData)
 			m_cmdbuf[m_cmdbuf_pos] = cData;
 			m_cmdbuf_pos++;
 			if(m_cmdbuf_pos >= 2 && strncmp(&m_cmdbuf[m_cmdbuf_pos-2], "~#", 2)==0){ // 例外的に即応答
-				m_sBuffer_rpos = m_sBuffer_wpos; //バッファ消す
 				SendDataToReadBuffer(cmwacom_ModelData, sizeof(cmwacom_ModelData));
 				//if(m_wait < WACOM_BUFFER) m_wait += sizeof(cmwacom_ModelData)*2;
-#if defined(SUPPORT_RS232C_FIFO)
-				if(rs232cfifo.port138 & 0x1){
-					// FIFOモードではウェイトなし
-					m_wait = 0;
-				}else
-#endif
-				{
-					m_wait = 4;
-				}
+				m_wait = sizeof(cmwacom_ModelData);
 				m_cmdbuf_pos = 0;
 				m_config.enable = true;
 			}
 		}
-#if defined(SUPPORT_RS232C_FIFO)
-		if(rs232cfifo.port138 & 0x1){
-			// FIFOモードではウェイトなし
-			m_wait = 0;
-		}
-#endif
 	}
 	return 0;
 }
