@@ -20,9 +20,6 @@ enum {
 #if defined(SUPPORT_WACOM_TABLET)
 	COMCREATE_TABLET,
 #endif
-#if defined(SUPPORT_NAMED_PIPE)
-	COMCREATE_PIPE,
-#endif
 	COMCREATE_NULL			= 0xffff,
 };
 
@@ -31,12 +28,7 @@ enum {
 	COMCONNECT_SERIAL,
 	COMCONNECT_MIDI,
 	COMCONNECT_PARALLEL,
-#if defined(SUPPORT_WACOM_TABLET)
 	COMCONNECT_TABLET,
-#endif
-#if defined(SUPPORT_NAMED_PIPE)
-	COMCONNECT_PIPE,
-#endif
 
 };
 
@@ -96,12 +88,7 @@ enum {
 	COMPORT_COM3,
 	COMPORT_COM4,
 	COMPORT_MIDI,
-#if defined(SUPPORT_WACOM_TABLET)
-	COMPORT_TABLET,
-#endif
-#if defined(SUPPORT_NAMED_PIPE)
-	COMPORT_PIPE,
-#endif
+	COMPORT_TABLET
 };
 
 enum {
