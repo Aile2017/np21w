@@ -8,9 +8,20 @@
 #include	"softkbd.h"
 
 
+typedef struct {
+	UINT8	ref[0x80];
+	UINT8	extkey;
+	UINT8	mouselast;
+	UINT8	padding;
+	UINT8	d_up;
+	UINT8	d_dn;
+	UINT8	d_lt;
+	UINT8	d_rt;
+} KEYSTAT;
+
 		NKEYTBL		nkeytbl;
 		KEYCTRL		keyctrl;
-		KEYSTAT		keystat;
+static	KEYSTAT		keystat;
 
 
 void keystat_initialize(void) {
@@ -368,7 +379,18 @@ void keystat_resendstat(void) {
 
 	REG8	i;
 
-	for (i=0; i<0x80; i++) {
+	//for (i=0; i<0x80; i++) {
+	//	if (keystat.ref[i] != NKEYREF_NC) {
+	//		keyboard_send(i);
+	//	}
+	//}
+	if (keystat.ref[0x00] != NKEYREF_NC) {
+		keyboard_send(0x00);
+	}
+	if (keystat.ref[0x0f] != NKEYREF_NC) {
+		keyboard_send(0x0f);
+	}
+	for (i=0x70; i<=0x74; i++) {
 		if (keystat.ref[i] != NKEYREF_NC) {
 			keyboard_send(i);
 		}
