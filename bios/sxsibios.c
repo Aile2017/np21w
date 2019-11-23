@@ -17,6 +17,8 @@
 // XXX: WORKAROUND for Win9x boot menu
 #include	"keystat.h"
 
+extern int sxsi_unittbl[];
+
 typedef REG8 (*SXSIFUNC)(UINT type, SXSIDEV sxsi);
 
 static REG8 sxsi_pos(UINT type, SXSIDEV sxsi, FILEPOS *ppos) {
@@ -52,7 +54,37 @@ static REG8 sxsi_pos(UINT type, SXSIDEV sxsi, FILEPOS *ppos) {
 	return(ret);
 }
 
-static REG8 sxsibios_write(UINT type, SXSIDEV sxsi) {
+static REG8 sasibios_write(UINT type, SXSIDEV sxsi) {
+
+	REG8	ret;
+	UINT	size;
+	FILEPOS	pos;
+	UINT32	addr;
+	UINT	r;
+	UINT8	work[1024];
+
+	size = CPU_BX;
+	if (!size) {
+		size = 0x10000;
+	}
+	ret = sxsi_pos(type, sxsi, &pos);
+	if (!ret) {
+		addr = (CPU_ES << 4) + CPU_BP;
+		while(size) {
+			r = min(size, sxsi->size);
+			MEML_READS(addr, work, r);
+			ret = sxsi_write(sxsi_unittbl[CPU_AL & 0x3], pos, work, r);
+			if (ret >= 0x20) {
+				break;
+			}
+			addr += r;
+			size -= r;
+			pos++;
+		}
+	}
+	return(ret);
+}
+static REG8 scsibios_write(UINT type, SXSIDEV sxsi) {
 
 	REG8	ret;
 	UINT	size;
@@ -83,7 +115,70 @@ static REG8 sxsibios_write(UINT type, SXSIDEV sxsi) {
 	return(ret);
 }
 
-static REG8 sxsibios_read(UINT type, SXSIDEV sxsi) {
+static REG8 sasibios_read(UINT type, SXSIDEV sxsi) {
+
+	REG8	ret;
+	UINT	size;
+	FILEPOS	pos;
+	UINT32	addr;
+	UINT	r;
+	UINT8	work[1024];
+	FILEPOS	posbase;
+	UINT8	oldAL = CPU_AL;
+
+	size = CPU_BX;
+	if (!size) {
+		size = 0x10000;
+	}
+	ret = sxsi_pos(type, sxsi, &pos);
+	posbase = pos;
+	if (!ret) {
+		addr = (CPU_ES << 4) + CPU_BP;
+		while(size) {
+			r = min(size, sxsi->size);
+			ret = sxsi_read(sxsi_unittbl[CPU_AL & 0x3], pos, work, r);
+			if (ret >= 0x20) {
+				break;
+			}
+			MEML_WRITES(addr, work, r);
+			addr += r;
+			size -= r;
+			pos++;
+		}
+	}
+#ifdef SUPPORT_IDEIO
+	if((oldAL & 0xf0) == 0x80){
+#if defined(BIOS_IO_EMULATION) && defined(CPUCORE_IA32)
+		if (CPU_STAT_PM && CPU_STAT_VM86 && biosioemu.enable) {
+			// for Windows 9x IDE Driver
+			UINT8 sn;
+			UINT16 cy;
+			UINT8 hd;
+			sn = (posbase % sxsi->sectors) + 1;
+			posbase /= sxsi->sectors;
+			hd = (posbase % sxsi->surfaces);
+			posbase /= sxsi->surfaces;
+			cy = posbase & 0xffff;
+			// LIFOなので逆順注意
+			biosioemu_push8(0x644, (CPU_BX / 512) & 0xff); 
+			biosioemu_push8(0x646, sn); 
+			biosioemu_push8(0x64a, ((cy >> 8) & 0xff)); 
+			biosioemu_push8(0x648, (cy & 0xff)); 
+			biosioemu_push8_read(0x64e); 
+			biosioemu_push8(0x64c, 0xA0|((sxsi_unittbl[oldAL & 0x3] & 0x1) << 4)|(hd & 0x0f)); 
+			biosioemu_push8_read(0x432);
+			if ((sxsi_unittbl[oldAL & 0x3] & 0xf) >= 0x2) {
+				biosioemu_push8(0x432, 0x01); // BANK #2
+			}else{
+				biosioemu_push8(0x432, 0x00); // BANK #1 
+			}
+		}
+#endif
+	}
+#endif
+	return(ret);
+}
+static REG8 scsibios_read(UINT type, SXSIDEV sxsi) {
 
 	REG8	ret;
 	UINT	size;
@@ -114,40 +209,50 @@ static REG8 sxsibios_read(UINT type, SXSIDEV sxsi) {
 			pos++;
 		}
 	}
-#ifdef SUPPORT_IDEIO
-	if((oldAL & 0xf0) == 0x80){
-#if defined(BIOS_IO_EMULATION) && defined(CPUCORE_IA32)
-		if (CPU_STAT_PM && CPU_STAT_VM86 && biosioemu.enable) {
-			// for Windows 9x IDE Driver
-			UINT8 sn;
-			UINT16 cy;
-			UINT8 hd;
-			sn = (posbase % sxsi->sectors) + 1;
-			posbase /= sxsi->sectors;
-			hd = (posbase % sxsi->surfaces);
-			posbase /= sxsi->surfaces;
-			cy = posbase & 0xffff;
-			// LIFOなので逆順注意
-			biosioemu_push8(0x644, (CPU_BX / 512) & 0xff); 
-			biosioemu_push8(0x646, sn); 
-			biosioemu_push8(0x64a, ((cy >> 8) & 0xff)); 
-			biosioemu_push8(0x648, (cy & 0xff)); 
-			biosioemu_push8_read(0x64e); 
-			biosioemu_push8(0x64c, 0xA0|((oldAL & 0x1) << 4)|(hd & 0x0f)); 
-			biosioemu_push8_read(0x432);
-			if ((oldAL & 0xf) >= 0x2) {
-				biosioemu_push8(0x432, 0x01); // BANK #2
-			}else{
-				biosioemu_push8(0x432, 0x00); // BANK #1 
-			}
-		}
-#endif
-	}
-#endif
 	return(ret);
 }
 
-static REG8 sxsibios_format(UINT type, SXSIDEV sxsi) {
+static REG8 sasibios_format(UINT type, SXSIDEV sxsi) {
+
+	REG8	ret;
+	FILEPOS	pos;
+
+	if (CPU_AH & 0x80) {
+		if (type == SXSIBIOS_SCSI) {		// とりあえずSCSIのみ
+			UINT count;
+			FILEPOS posmax;
+			count = timing_getcount();			// 時間を止める
+			ret = 0;
+			pos = 0;
+			posmax = (FILEPOS)sxsi->surfaces * sxsi->cylinders;
+			while(pos < posmax) {
+				ret = sxsi_format(sxsi_unittbl[CPU_AL & 0x3], pos * sxsi->sectors);
+				if (ret) {
+					break;
+				}
+				pos++;
+			}
+			timing_setcount(count);							// 再開
+		}
+		else {
+			ret = 0xd0;
+		}
+	}
+	else {
+		if (CPU_DL) {
+			ret = 0x30;
+		}
+		else {
+//			i286_memstr_read(CPU_ES, CPU_BP, work, CPU_BX);
+			ret = sxsi_pos(type, sxsi, &pos);
+			if (!ret) {
+				ret = sxsi_format(sxsi_unittbl[CPU_AL & 0x3], pos);
+			}
+		}
+	}
+	return(ret);
+}
+static REG8 scsibios_format(UINT type, SXSIDEV sxsi) {
 
 	REG8	ret;
 	FILEPOS	pos;
@@ -219,8 +324,12 @@ static REG8 sasibios_init(UINT type, SXSIDEV sxsi) {
 #else
 	for (i=0x00, bit=0x0100; i<0x02; i++, bit<<=1) {
 #endif
-		sxsi = sxsi_getptr(i);
-		if ((sxsi) && (sxsi->flag & SXSIFLAG_READY) && sxsi->devtype==SXSIDEV_HDD) {
+		//sxsi = sxsi_getptr(i);
+		//if ((sxsi) && ((sxsi->flag & SXSIFLAG_READY) && sxsi->devtype==SXSIDEV_HDD || sxsi->devtype==SXSIDEV_CDROM)) {
+		//	diskequip |= bit;
+		//}
+		sxsi = sxsi_getptr(sxsi_unittbl[i]);
+		if ((sxsi) && ((sxsi->flag & SXSIFLAG_READY) && sxsi->devtype==SXSIDEV_HDD)) {
 			diskequip |= bit;
 		}
 	}
@@ -253,15 +362,15 @@ static const SXSIFUNC sasifunc[16] = {
 			sxsibios_failed,		// SASI 2:
 			sasibios_init,			// SASI 3: イニシャライズ
 			sasibios_sense,			// SASI 4: センス
-			sxsibios_write,			// SASI 5: データの書き込み
-			sxsibios_read,			// SASI 6: データの読み込み
+			sasibios_write,			// SASI 5: データの書き込み
+			sasibios_read,			// SASI 6: データの読み込み
 			sxsibios_succeed,		// SASI 7: リトラクト
 			sxsibios_failed,		// SASI 8:
 			sxsibios_failed,		// SASI 9:
 			sxsibios_failed,		// SASI a:
 			sxsibios_failed,		// SASI b:
 			sxsibios_failed,		// SASI c:
-			sxsibios_format,		// SASI d: フォーマット
+			sasibios_format,		// SASI d: フォーマット
 			sxsibios_failed,		// SASI e:
 			sxsibios_succeed};		// SASI f: リトラクト
 
@@ -281,7 +390,8 @@ REG8 sasibios_operate(void) {
 	else {
 		return(0x60);
 	}
-	sxsi = sxsi_getptr(CPU_AL);
+	//sxsi = sxsi_getptr(CPU_AL);
+	sxsi = sxsi_getptr(sxsi_unittbl[CPU_AL & 0x3]);
 	if (sxsi == NULL) {
 		return(0x60);
 	}
@@ -392,15 +502,15 @@ static const SXSIFUNC scsifunc[16] = {
 			sxsibios_failed,		// SCSI 2:
 			scsibios_init,			// SCSI 3: イニシャライズ
 			scsibios_sense,			// SCSI 4: センス
-			sxsibios_write,			// SCSI 5: データの書き込み
-			sxsibios_read,			// SCSI 6: データの読み込み
+			scsibios_write,			// SCSI 5: データの書き込み
+			scsibios_read,			// SCSI 6: データの読み込み
 			sxsibios_succeed,		// SCSI 7: リトラクト
 			sxsibios_failed,		// SCSI 8:
 			sxsibios_failed,		// SCSI 9:
 			scsibios_setsec,		// SCSI a: セクタ長設定
 			sxsibios_failed,		// SCSI b:
 			scsibios_chginf,		// SCSI c: 代替情報取得
-			sxsibios_format,		// SCSI d: フォーマット
+			scsibios_format,		// SCSI d: フォーマット
 			sxsibios_failed,		// SCSI e:
 			sxsibios_succeed};		// SCSI f: リトラクト
 
