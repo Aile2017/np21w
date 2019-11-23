@@ -131,7 +131,7 @@ static BRESULT hdd_reopen(SXSIDEV sxsi)
 
 static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 {
-	sxsihdd_nvl *p = NULL;
+	sxsihdd_nvl *p = (sxsihdd_nvl *)sxsi->hdl;
 
 	if (sxsi_prepare(sxsi) != SUCCESS)
 	{
@@ -140,10 +140,6 @@ static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 	if ((pos < 0) || (pos >= sxsi->totals))
 	{
 		return (0x40);
-	}
-	p = (sxsihdd_nvl *)sxsi->hdl;
-	if(p == NULL){
-		return (0x60);
 	}
 
 	pos = pos * sxsi->size;
@@ -171,7 +167,7 @@ static REG8 hdd_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size)
 
 static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 {
-	sxsihdd_nvl *p = NULL;
+	sxsihdd_nvl *p = (sxsihdd_nvl *)sxsi->hdl;
 
 	if (sxsi_prepare(sxsi) != SUCCESS)
 	{
@@ -181,11 +177,7 @@ static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 	{
 		return (0x40);
 	}
-	p = (sxsihdd_nvl *)sxsi->hdl;
-	if(p == NULL){
-		return (0x60);
-	}
-	
+
 	pos = pos * sxsi->size;
 
 	while (size)
@@ -211,7 +203,7 @@ static REG8 hdd_write(SXSIDEV sxsi, FILEPOS pos, const UINT8 *buf, UINT size)
 
 static REG8 hdd_format(SXSIDEV sxsi, FILEPOS pos)
 {
-	sxsihdd_nvl *p = NULL;
+	sxsihdd_nvl *p = (sxsihdd_nvl *)sxsi->hdl;
 	UINT16 i;
 	UINT8 work[256];
 
@@ -222,10 +214,6 @@ static REG8 hdd_format(SXSIDEV sxsi, FILEPOS pos)
 	if ((pos < 0) || (pos >= sxsi->totals))
 	{
 		return (0x40);
-	}
-	p = (sxsihdd_nvl *)sxsi->hdl;
-	if(p == NULL){
-		return (0x60);
 	}
 
 	pos = pos * sxsi->size;
