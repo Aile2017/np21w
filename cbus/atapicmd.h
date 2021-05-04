@@ -52,7 +52,6 @@ void atapi_deinitialize(void);
 void atapicmd_a0(IDEDRV drv);
 
 void atapi_dataread(IDEDRV drv);
-void atapi_dataread_asyncwait(int wait);
 
 #ifdef __cplusplus
 }

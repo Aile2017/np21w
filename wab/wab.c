@@ -430,12 +430,17 @@ void np2wab_drawframe()
 	}else{
 		if(np2wabwnd.hWndWAB!=NULL){
 			if(ga_reqChangeWindowSize){
-				// 画面サイズ変更要求が来ていたら画面サイズを変える
-				np2wab_setScreenSize(ga_reqChangeWindowSize_w, ga_reqChangeWindowSize_h);
-				ga_lastrealwidth = ga_reqChangeWindowSize_w;
-				ga_lastrealheight = ga_reqChangeWindowSize_h;
-				ga_reqChangeWindowSize = 0;
-				np2wabwnd.ready = 1;
+//#if defined(SUPPORT_MULTITHREAD)
+//				if(!np2_multithread_Enabled()) // np2wab_drawframeUIthreadで変える
+//#endif
+//				{
+					// 画面サイズ変更要求が来ていたら画面サイズを変える
+					np2wab_setScreenSize(ga_reqChangeWindowSize_w, ga_reqChangeWindowSize_h);
+					ga_lastrealwidth = ga_reqChangeWindowSize_w;
+					ga_lastrealheight = ga_reqChangeWindowSize_h;
+					ga_reqChangeWindowSize = 0;
+					np2wabwnd.ready = 1;
+				//}
 			}
 			if(np2wabwnd.ready && (np2wab.relay&0x3)!=0){
 				if(ga_screenupdated){
@@ -471,6 +476,23 @@ void np2wab_drawframe()
 			}
 		}
 	}
+}
+/**
+ * UIスレッドから定期的に呼ばれる
+ */
+void np2wab_drawframeUIthread()
+{
+	//if(ga_reqChangeWindowSize){
+	//	if(np2_multithread_Enabled())
+	//	{
+	//		// 画面サイズ変更要求が来ていたら画面サイズを変える
+	//		np2wab_setScreenSize(ga_reqChangeWindowSize_w, ga_reqChangeWindowSize_h);
+	//		ga_lastrealwidth = ga_reqChangeWindowSize_w;
+	//		ga_lastrealheight = ga_reqChangeWindowSize_h;
+	//		ga_reqChangeWindowSize = 0;
+	//		np2wabwnd.ready = 1;
+	//	}
+	//}
 }
 /**
  * 非同期描画（ga_threadmodeが真）
@@ -702,7 +724,9 @@ void np2wab_setRelayState(REG8 state)
 				// 統合モードなら画面を乗っ取る
 #if defined(SUPPORT_MULTITHREAD)
 				if(np2_multithread_Enabled()){
-					np2wab_setScreenSizeMT(ga_lastwabwidth, ga_lastwabheight);
+					ga_reqChangeWindowSize_w = ga_lastwabwidth;
+					ga_reqChangeWindowSize_h = ga_lastwabheight;
+					ga_reqChangeWindowSize = 1;
 				}else
 #endif
 				{

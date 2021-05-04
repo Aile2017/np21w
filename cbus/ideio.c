@@ -570,8 +570,6 @@ static void IOOUTCALL ideio_o430(UINT port, REG8 dat) {
 
 	TRACEOUT(("ideio setbank%d %.2x [%.4x:%.8x]",
 									(port >> 1) & 1, dat, CPU_CS, CPU_EIP));
-	atapi_dataread_asyncwait(INFINITE);
-
 	if (!(dat & 0x80)) {
 		//char buf[100] = {0};
 		if ((port >> 1) & 1) {
@@ -584,12 +582,6 @@ static void IOOUTCALL ideio_o430(UINT port, REG8 dat) {
 		}
 		//sprintf(buf, "0x%x\n", dat);
 		//OutputDebugStringA(buf);
-	}
-	
-	// XXX: WORKAROUND for WinNT4.0 正常な接続フラグに書き戻す
-	if(mem[0x05bb]){
-		mem[0x05ba] = mem[0x05bb];
-		mem[0x05bb] = 0;
 	}
 }
 
@@ -743,8 +735,6 @@ static void IOOUTCALL ideio_o64c(UINT port, REG8 dat) {
 
 	IDEDEV	dev;
 	UINT	drvnum;
-	
-	atapi_dataread_asyncwait(INFINITE);
 
 	dev = getidedev();
 	if (dev == NULL) {
@@ -784,8 +774,6 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 	IDEDRV	drv, d;
 	IDEDEV	dev;
 	int		i;
-	
-	atapi_dataread_asyncwait(INFINITE);
 
 	// execute device diagnostic
 	if (dat == 0x90) {
@@ -1179,7 +1167,6 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 			if (drv->device == IDETYPE_HDD) {
 				drv->mulcnt = 0;
 				drv->multhr = drv->mulmode;
-				drv->lba48mode = 1;
 				readsec(drv);
 				break;
 			}
@@ -1193,7 +1180,6 @@ static void IOOUTCALL ideio_o64e(UINT port, REG8 dat) {
 			if (drv->device == IDETYPE_HDD) {
 				drv->mulcnt = 0;
 				drv->multhr = drv->mulmode;
-				drv->lba48mode = 1;
 				writesec(drv);
 				break;
 			}
@@ -1515,6 +1501,7 @@ void IOOUTCALL ideio_w16(UINT port, REG16 value) {
 						break;
 					}
 					incsec(drv);
+					drv->sc--;
 #if defined(SUPPORT_IDEIO_48BIT)
 					if(drv->lba48mode){
 						drv->lba48sc--;
@@ -1535,7 +1522,6 @@ void IOOUTCALL ideio_w16(UINT port, REG16 value) {
 					}else
 #endif
 					{
-						drv->sc--;
 						if (drv->sc) {
 							writesec(drv);
 						}else{
@@ -1588,6 +1574,7 @@ REG16 IOINPCALL ideio_r16(UINT port) {
 				case 0xc4:
 				case 0x29:
 					incsec(drv);
+					drv->sc--;
 #if defined(SUPPORT_IDEIO_48BIT)
 					if(drv->lba48mode){
 						drv->lba48sc--;
@@ -1601,7 +1588,6 @@ REG16 IOINPCALL ideio_r16(UINT port) {
 					}else
 #endif
 					{
-						drv->sc--;
 						if (drv->sc) {
 							readsec(drv);
 						}else{
@@ -1863,7 +1849,7 @@ void ideio_basereset() {
 	if (pccore.hddif & PCHDD_IDE) {
 		int compmode = (sxsi_getdevtype(0)!=SXSIDEV_CDROM && sxsi_getdevtype(1)!=SXSIDEV_CDROM && sxsi_getdevtype(2)==SXSIDEV_CDROM && sxsi_getdevtype(3)!=SXSIDEV_CDROM); // 旧機種互換モード？
 
-		// WORKAROUND for WinNT4.0
+		// WinNT4.0でHDDが認識するようになる。Win9xもBIOS I/Oエミュレーションで対応。
 		if(compmode){
 			mem[0x05ba] = (sxsi_getdevtype(3)==SXSIDEV_HDD ? 0x8 : 0x0)|(sxsi_getdevtype(2)==SXSIDEV_HDD ? 0x4 : 0x0)|
 							(sxsi_getdevtype(1)==SXSIDEV_HDD ? 0x2 : 0x0)|(sxsi_getdevtype(0)==SXSIDEV_HDD ? 0x1 : 0x0);

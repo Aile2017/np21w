@@ -108,6 +108,28 @@
 
 #include	<process.h>
 
+#if 1
+#undef	TRACEOUT
+#define USE_TRACEOUT_VS
+//#define MEM_BDA_TRACEOUT
+//#define MEM_D8_TRACEOUT
+#ifdef USE_TRACEOUT_VS
+static void trace_fmt_ex(const char *fmt, ...)
+{
+	char stmp[2048];
+	va_list ap;
+	va_start(ap, fmt);
+	vsprintf(stmp, fmt, ap);
+	strcat(stmp, "\n");
+	va_end(ap);
+	OutputDebugStringA(stmp);
+}
+#define	TRACEOUT(s)	trace_fmt_ex s
+#else
+#define	TRACEOUT(s)	(void)(s)
+#endif
+#endif	/* 1 */
+
 #ifdef SUPPORT_WACOM_TABLET
 void cmwacom_setNCControl(bool enable);
 #endif
@@ -2306,24 +2328,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 
 		case WM_ACTIVATE:
+			np2_multithread_EnterCriticalSection();
 			if (LOWORD(wParam) != WA_INACTIVE) {
 				np2break &= ~NP2BREAK_MAIN;
-				scrndraw_redraw();
-				if (np2stopemulate || np2userpause) {
-					scrndraw_draw(1);
-				}
-				np2_multithread_EnterCriticalSection();
+				scrnmng_update();
 				keystat_allrelease();
 				mousemng_enable(MOUSEPROC_BG);
-				np2_multithread_LeaveCriticalSection();
 			}
 			else {
 				np2break |= NP2BREAK_MAIN;
-				np2_multithread_EnterCriticalSection();
 				mousemng_disable(MOUSEPROC_BG);
-				np2_multithread_LeaveCriticalSection();
 			}
 			np2active_renewal();
+			np2_multithread_LeaveCriticalSection();
 			break;
 
 		case WM_PAINT:
@@ -2885,11 +2902,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				np2_multithread_EnterCriticalSection();
 				scrnmng_setsize(0, 0, 640, 400);
 				np2_multithread_LeaveCriticalSection();
-				if (np2oscfg.WINSNAP) {
-					RECT currect;
-					GetWindowRect(hWnd, &currect);
-					winlocex_moving(smwlex, &currect);
-				}
 
 				CDebugUtyView::AllClose();
 				CDebugUtyView::DisposeAllClosedWindow();
@@ -3258,7 +3270,6 @@ static void framereset_MT_UIThread(UINT cnt) {
 	scrnmng_dispclock();
 #endif
 	kdispwin_draw((UINT8)cnt);
-	sysmng_requestupdatecheck();
 	skbdwin_process();
 	mdbgwin_process();
 	toolwin_draw((UINT8)cnt);
@@ -3278,10 +3289,6 @@ static void (*framereset)(UINT cnt) = framereset_ALL;
 
 static void processwait(UINT cnt) {
 
-	static int averageskipcounter = 0;
-	static int skipnext = 0;
-	static int incskip = 0;
-
 	UINT count = timing_getcount();
 	if (count+lateframecount >= cnt) {
 		lateframecount = lateframecount + count - cnt;
@@ -3294,29 +3301,12 @@ static void processwait(UINT cnt) {
 		if(lateframecount > np2oscfg.cpustabf) lateframecount = np2oscfg.cpustabf;
 		timing_setcount(0);
 		framereset(cnt);
-		if(skipnext > 0){
-			if(averageskipcounter <= 1){
-				skipnext = 0;
-			}
-		}
-		incskip = 0;
-		averageskipcounter = 0;
 	}
 	else {
 		if(lateframecount){
 			Sleep(0);
-			if(skipnext > 0) skipnext--;
 		}else{
-			if(skipnext > 0 && averageskipcounter==0){
-				Sleep(skipnext); // ‹x‚ß‚é‚¾‚¯‹x‚Þ
-			}else{
-				Sleep(0);
-			}
-			if(averageskipcounter>1){
-				if(!incskip && skipnext < 10) skipnext++;
-				incskip = 1;
-			}
-			averageskipcounter++;
+			Sleep(0);
 		}
 	}
 }
@@ -3345,6 +3335,16 @@ void unloadNP2INI(){
 	}
 #endif
 
+#ifdef SUPPORT_CL_GD5430
+	//pc98_cirrus_vga_shutdown();
+#endif
+#ifdef SUPPORT_WAB
+	//np2wab_shutdown();
+#endif
+#ifdef SUPPORT_NET
+	//np2net_shutdown();
+#endif
+	
 	sxsi_alltrash();
 	pccore_term();
 
@@ -4116,13 +4116,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 				((msg.message != WM_SYSKEYDOWN) &&
 				(msg.message != WM_SYSKEYUP))) {
 				if(msg.message == WM_TIMER && msg.wParam == tmrID){
-					framereset_MT_UIThread(1);
+					framereset_MT_UIThread(60 * tmrInterval / 1000);
 #if defined(SUPPORT_DCLOCK)
 					DispClock::GetInstance()->Update();
 #endif
 #if defined(SUPPORT_VSTi)
 					CVstEditWnd::OnIdle();
 #endif	// defined(SUPPORT_VSTi)
+#ifdef SUPPORT_WAB
+					if(np2wab.relay & 0x3){
+						np2wab_drawframeUIthread(); 
+					}
+#endif
 				}
 				TranslateMessage(&msg);
 			}
@@ -4259,15 +4264,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #ifdef SUPPORT_CL_GD5430
 	pc98_cirrus_vga_shutdown();
 #endif
-
-	pccore_term();
-
 #ifdef SUPPORT_WAB
 	np2wab_shutdown();
 #endif
 #ifdef SUPPORT_NET
 	np2net_shutdown();
 #endif
+
+	pccore_term();
 
 	CSoundMng::GetInstance()->Close();
 	CSoundMng::Deinitialize();

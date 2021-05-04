@@ -132,7 +132,6 @@ void pic_irq(void) {												// ver0.78
 	REG8	num;
 	REG8	bit;
 	REG8	slave;
-	UINT8	intrtmp;
 
 	// 割込み許可？
 #if defined(SUPPORT_IA32_HAXM)
@@ -189,11 +188,7 @@ void pic_irq(void) {												// ver0.78
 			p->pi[1].isr |= bit;
 			p->pi[1].irr &= ~bit;
 //			TRACEOUT(("hardware-int %.2x", (p->pi[1].icw[1] & 0xf8) | num));
-			intrtmp = (p->pi[1].icw[1] & 0xf8) | num;
-			pic_leave_criticalsection();
-			CPU_INTERRUPT((REG8)intrtmp, 0);
-		}else{
-			pic_leave_criticalsection();
+			CPU_INTERRUPT((REG8)((p->pi[1].icw[1] & 0xf8) | num), 0);
 		}
 	}
 	else if (!(p->pi[0].isr & bit)) {				// マスター
@@ -203,12 +198,9 @@ void pic_irq(void) {												// ver0.78
 			nevent_reset(NEVENT_PICMASK);
 		}
 //		TRACEOUT(("hardware-int %.2x [%.4x:%.4x]", (p->pi[0].icw[1] & 0xf8) | num, CPU_CS, CPU_IP));
-		intrtmp = (p->pi[0].icw[1] & 0xf8) | num;
-		pic_leave_criticalsection();
-		CPU_INTERRUPT((REG8)intrtmp, 0);
-	}else{
-		pic_leave_criticalsection();
+		CPU_INTERRUPT((REG8)((p->pi[0].icw[1] & 0xf8) | num), 0);
 	}
+	pic_leave_criticalsection();
 }
 #endif
 
