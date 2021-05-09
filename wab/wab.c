@@ -10,6 +10,7 @@
 #if defined(SUPPORT_WAB)
 
 #include "np2.h"
+#include "np2mt.h"
 #include "resource.h"
 #include "dosio.h"
 #include "cpucore.h"
@@ -699,7 +700,14 @@ void np2wab_setRelayState(REG8 state)
 				SetWindowPos(np2wabwnd.hWndWAB, HWND_TOP, np2wabcfg.posx, np2wabcfg.posy, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOSENDCHANGING | SWP_SHOWWINDOW);
 			}else{
 				// ìùçáÉÇÅ[ÉhÇ»ÇÁâÊñ ÇèÊÇ¡éÊÇÈ
-				np2wab_setScreenSize(ga_lastwabwidth, ga_lastwabheight);
+#if defined(SUPPORT_MULTITHREAD)
+				if(np2_multithread_Enabled()){
+					np2wab_setScreenSizeMT(ga_lastwabwidth, ga_lastwabheight);
+				}else
+#endif
+				{
+					np2wab_setScreenSize(ga_lastwabwidth, ga_lastwabheight);
+				}
 			}
 		}else{
 			// ÉäÉåÅ[Ç™OFF
