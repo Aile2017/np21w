@@ -59,8 +59,6 @@ static bool mousemng_requestCreateInput = false;
 static bool mousemng_requestAcquire = false;
 static CRITICAL_SECTION mousemng_multithread_deviceinit_cs = { 0 };
 
-extern UINT8	np2userpause;
-
 BRESULT mousemng_checkdinput8(){
 	if (mousemng_UIthreadID != GetCurrentThreadId()) return FAILURE; // 別のスレッドからのアクセスは不可
 
@@ -141,13 +139,6 @@ UINT8 mousemng_getabspos(int* x, int* y)
 	{
 		return 0; // キャプチャ中やキャプチャなし操作無効の場合は絶対座標不可
 	}
-#ifdef SUPPORT_WACOM_TABLET
-	if (cmwacom_skipMouseEvent())
-	{
-		mousemng.x = 0;
-		mousemng.y = 0;
-	}
-#endif
 	np2_multithread_EnterCriticalSection();
 	*x = mouseposX;
 	*y = mouseposY;
@@ -549,7 +540,7 @@ void mousemng_updatemouseon(int mouseon)
 	int newmousecursorcurhide = mousecursorcurhide;
 
 	lastmouseon = mouseon;
-	if (mouseon && mousemngstat.autohide && np2oscfg.mouse_nc && !np2userpause)
+	if (mouseon && mousemngstat.autohide && np2oscfg.mouse_nc)
 	{
 		newmousecursorcurhide = 1;
 	}

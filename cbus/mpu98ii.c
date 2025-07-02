@@ -1056,9 +1056,6 @@ REG8 IOINPCALL mpu98ii_i0(UINT port) {
 TRACEOUT(("mpu98ii inp %.4x %.2x", port, mpu98.data));
 		return(mpu98.data);
 	}
-	else if ((port & 0xff00) == 0x8000) {
-		return(mpu98.data);
-	}
 	(void)port;
 	return(0xff);
 }
@@ -1070,22 +1067,14 @@ REG8 IOINPCALL mpu98ii_i2(UINT port) {
 	if (cm_mpu98 == NULL) {
 		cm_mpu98 = commng_create(COMCREATE_MPU98II, FALSE);
 	}
-	if (cm_mpu98->connect != COMCONNECT_OFF || port == (cs4231.port[10] + 1) || (port & 0xff00) == 0x8100) {
+	if (cm_mpu98->connect != COMCONNECT_OFF || g_nSoundID == SOUNDID_PC_9801_118 || g_nSoundID == SOUNDID_PC_9801_118_SB16) {
 		ret = mpu98.status;
 		if ((mpu98.r.cnt == 0) && (mpu98.intreq == 0)) {
 			ret |= MIDIIN_AVAIL;
 		}
-		// TRACEOUT(("mpu98ii inp %.4x %.2x", port, ret));
-		TRACEOUT(("mpu98ii inp %.4x %.2x", port, mpu98.data));
-		if ((port & 0xff00) == 0x8100)
-		{
-			// SB16のMPU互換ポートではMIDIIN_AVAILとMIDIOUT_BUSY以外のビットが常に1らしい
-			return(ret | ~(MIDIIN_AVAIL | MIDIOUT_BUSY));
-		}
-		else
-		{
-			return(ret);
-		}
+// TRACEOUT(("mpu98ii inp %.4x %.2x", port, ret));
+TRACEOUT(("mpu98ii inp %.4x %.2x", port, mpu98.data));
+		return(ret);
 	}
 	(void)port;
 	return(0xff);
