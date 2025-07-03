@@ -8,7 +8,6 @@
 */
 
 #include	<shlwapi.h>
-#include	<process.h>
 
 #include	"pccore.h"
 #include	"iocore.h"
@@ -23,8 +22,6 @@
 #include	"hostdrvnt.h"
 #include	"hostdrvntdef.h"
 
-// 性能上最適化で優先しない方がいいコードなのでわざと別セグメントに置く
-#pragma code_seg(".MISCCODE")
 #if !defined(CPUCORE_IA32)
 #define	cpu_kmemorywrite(a,v)	memp_write8(a,v)
 #define	cpu_kmemorywrite_w(a,v)	memp_write16(a,v)
@@ -740,7 +737,7 @@ static int hostdrvNT_getOneEntry(NP2HOSTDRVNT_FILEINFO* fi, NP2_FILE_BOTH_DIR_IN
 
 	if (fi->hFindFile == NULL || fi->hFindFile == INVALID_HANDLE_VALUE)
 	{
-		WCHAR defaultPattern[] = L"*";
+		WCHAR defaultPattern = L"*";
 		WCHAR findPath[MAX_PATH * 2];
 		UINT32 findPathLen = 0;
 		if (pattern == NULL)
@@ -1093,7 +1090,7 @@ static void hostdrvNT_IRP_MJ_CREATE(HOSTDRVNT_INVOKEINFO *invokeInfo)
 		if (hostdrvDesiredAccess & FILE_READ_EA) hostdrvWinAPIDesiredAccess |= GENERIC_READ;
 		if (hostdrvDesiredAccess & FILE_TRAVERSE) hostdrvWinAPIDesiredAccess |= GENERIC_READ;
 		if (hostdrvDesiredAccess & READ_CONTROL) hostdrvWinAPIDesiredAccess |= GENERIC_READ;
-		//if (hostdrvDesiredAccess & FILE_WRITE_ATTRIBUTES) hostdrvWinAPIDesiredAccess |= GENERIC_WRITE; // 属性変更は書き込み権限要らない
+		if (hostdrvDesiredAccess & FILE_WRITE_ATTRIBUTES) hostdrvWinAPIDesiredAccess |= GENERIC_WRITE;
 		if (hostdrvDesiredAccess & FILE_WRITE_EA) hostdrvWinAPIDesiredAccess |= GENERIC_WRITE;
 		if (hostdrvDesiredAccess & FILE_WRITE_DATA) hostdrvWinAPIDesiredAccess |= GENERIC_WRITE;
 	}
@@ -3534,6 +3531,4 @@ int hostdrvNT_sfload(STFLAGH sfh, const SFENTRY* tbl)
 	}
 	return(ret);
 }
-#pragma code_seg()
-
 #endif
