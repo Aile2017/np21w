@@ -16,6 +16,9 @@
 
 #include <shlwapi.h>
 
+ // 性能上最適化で優先しない方がいいコードなのでわざと別セグメントに置く
+#pragma code_seg(".MISCCODE")
+
 /*! ルート情報 */
 static const HDRVFILE s_hddroot = {{' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' '}, 0, 0, 0x10, {0}, {0}};
 
@@ -572,5 +575,7 @@ HDRVHANDLE hostdrvs_fhdlsea(LISTARRAY fileArray)
 	}
 	return ret;
 }
+
+#pragma code_seg()
 
 #endif
