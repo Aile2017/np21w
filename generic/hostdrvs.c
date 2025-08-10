@@ -200,6 +200,7 @@ LISTARRAY hostdrvs_getpathlist(const HDRVPATH *phdp, const char *lpMask, UINT nA
 	HDRVLST hdd;
 	FLISTH flh;
 	FLINFO fli;
+	int isRoot = phdp->szPath && (_tcsicmp(phdp->szPath, np2cfg.hdrvroot) == 0);
 
 	ret = listarray_new(sizeof(_HDRVLST), 64);
 	if (ret != NULL)
@@ -211,7 +212,7 @@ LISTARRAY hostdrvs_getpathlist(const HDRVPATH *phdp, const char *lpMask, UINT nA
 			file = phdp->file;
 			memcpy(file.fcbname, s_self, 11);
 			listarray_append(lst, &file);
-			if (IsMatchFcb(&file, lpMask, nAttr))
+			if (!isRoot && IsMatchFcb(&file, lpMask, nAttr))
 			{
 				hdd = (HDRVLST)listarray_append(ret, NULL);
 				if (hdd != NULL)
@@ -224,7 +225,7 @@ LISTARRAY hostdrvs_getpathlist(const HDRVPATH *phdp, const char *lpMask, UINT nA
 			file = phdp->file;
 			memcpy(file.fcbname, s_parent, 11);
 			listarray_append(lst, &file);
-			if (IsMatchFcb(&file, lpMask, nAttr))
+			if (!isRoot && IsMatchFcb(&file, lpMask, nAttr))
 			{
 				hdd = (HDRVLST)listarray_append(ret, NULL);
 				if (hdd != NULL)
@@ -491,8 +492,9 @@ UINT hostdrvs_getrealpath(HDRVPATH *phdp, const char *lpDosPath)
 	char fcbname[11];
 	UINT nResult;
 	
-	if (lpDosPath[0] == '\0') // root check
+	if (lpDosPath[0] == '\0' || (lpDosPath[0] == '\\' && lpDosPath[1] == '\0')) // root check
 	{
+		file_cpyname(phdp->szPath, np2cfg.hdrvroot, NELEMENTS(phdp->szPath)); // copy root path
 		return ERR_NOERROR;
 	}
 	nResult = hostdrvs_getrealdir(phdp, fcbname, lpDosPath);
