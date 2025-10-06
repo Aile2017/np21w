@@ -1,2 +1,0 @@
-à»â∫ÇÃÇÊÇ§Ç…çÏê¨
-nasm -f bin NP2IDLE.ASM -o NP2IDLE.COM

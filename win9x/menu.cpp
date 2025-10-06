@@ -236,8 +236,6 @@ void sysmenu_update(HMENU hMenu)
 	CheckMenuItem(hMenu, IDM_SCRNMUL10, MF_BYCOMMAND | MFCHECK(scrnmul == 10));
 	CheckMenuItem(hMenu, IDM_SCRNMUL12, MF_BYCOMMAND | MFCHECK(scrnmul == 12));
 	CheckMenuItem(hMenu, IDM_SCRNMUL16, MF_BYCOMMAND | MFCHECK(scrnmul == 16));
-	CheckMenuItem(hMenu, IDM_SCRNMUL24, MF_BYCOMMAND | MFCHECK(scrnmul == 24));
-	CheckMenuItem(hMenu, IDM_SCRNMUL32, MF_BYCOMMAND | MFCHECK(scrnmul == 32));
 }
 
 
@@ -342,8 +340,11 @@ void xmenu_update(HMENU hMenu)
 	CheckMenuItem(hMenu, IDM_CPUSTABILIZER, MF_BYCOMMAND | MFCHECK(np2oscfg.cpustabf != 0));
 #if defined(SUPPORT_ASYNC_CPU)
 	CheckMenuItem(hMenu, IDM_ASYNCCPU, MF_BYCOMMAND | MFCHECK(np2cfg.asynccpu != 0));
-	CheckMenuItem(hMenu, IDM_ASYNCCPU_LEVEL_MAX, MF_BYCOMMAND | MFCHECK(np2cfg.asynclvl == 100));
-	CheckMenuItem(hMenu, IDM_ASYNCCPU_LEVEL_MIN, MF_BYCOMMAND | MFCHECK(np2cfg.asynclvl == 0));
+	CheckMenuItem(hMenu, IDM_ASYNCCPU_MAX, MF_BYCOMMAND | MFCHECK(np2cfg.asynctgt == 100));
+	CheckMenuItem(hMenu, IDM_ASYNCCPU_20, MF_BYCOMMAND | MFCHECK(np2cfg.asynctgt == 20));
+	CheckMenuItem(hMenu, IDM_ASYNCCPU_30, MF_BYCOMMAND | MFCHECK(np2cfg.asynctgt == 30));
+	CheckMenuItem(hMenu, IDM_ASYNCCPU_50, MF_BYCOMMAND | MFCHECK(np2cfg.asynctgt == 50));
+	CheckMenuItem(hMenu, IDM_ASYNCCPU_70, MF_BYCOMMAND | MFCHECK(np2cfg.asynctgt == 70));
 #endif
 	const UINT8 DRAW_SKIP = np2oscfg.DRAW_SKIP;
 	CheckMenuItem(hMenu, IDM_AUTOFPS, MF_BYCOMMAND | MFCHECK(DRAW_SKIP == 0));
@@ -447,16 +448,8 @@ void xmenu_update(HMENU hMenu)
 	// Device-FPU
 	const UINT8 fputype = np2cfg.fpu_type;
 	CheckMenuItem(hMenu, IDM_FPU80, MF_BYCOMMAND | MFCHECK(fputype == FPU_TYPE_SOFTFLOAT));
-#if defined(SUPPORT_FPU_DOSBOX)
 	CheckMenuItem(hMenu, IDM_FPU64,  MF_BYCOMMAND | MFCHECK(fputype == FPU_TYPE_DOSBOX));
-#else
-	EnableMenuItem(hMenu, IDM_FPU64, MF_GRAYED);
-#endif
-#if defined(SUPPORT_FPU_DOSBOX2)
 	CheckMenuItem(hMenu, IDM_FPU64INT,  MF_BYCOMMAND | MFCHECK(fputype == FPU_TYPE_DOSBOX2));
-#else
-	EnableMenuItem(hMenu, IDM_FPU64INT, MF_GRAYED);
-#endif
 
 	// Device
 	CheckMenuItem(hMenu, IDM_MOUSE, MF_BYCOMMAND | MFCHECK(np2oscfg.MOUSE_SW));

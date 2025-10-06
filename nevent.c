@@ -26,6 +26,10 @@ static void trace_fmt_ex(const char* fmt, ...)
 
 	_NEVENT g_nevent;
 
+#if defined(SUPPORT_ASYNC_CPU)
+	extern int pccore_asynccpu_screendisp;
+#endif
+	
 #if defined(SUPPORT_MULTITHREAD)
 static int nevent_cs_initialized = 0;
 static CRITICAL_SECTION nevent_cs;
@@ -171,7 +175,7 @@ void nevent_progress(void)
 			item->flag &= ~(NEVENT_ENABLE);
 //			TRACEOUT(("event = %x", id));
 #if defined(SUPPORT_ASYNC_CPU)
-			pccore_asynccpustat.screendisp = (id == NEVENT_FLAMES && g_nevent.item[NEVENT_FLAMES].proc == screendisp);
+			pccore_asynccpu_screendisp = (id == NEVENT_FLAMES && g_nevent.item[NEVENT_FLAMES].proc == screendisp);
 #endif
 		}
 		fevtchk |= (id==NEVENT_FLAMES ? 1 : 0);

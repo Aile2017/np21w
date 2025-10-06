@@ -1125,8 +1125,8 @@ static int flagload_fm(STFLAGH sfh, const SFENTRY *tbl)
 			if(sizeof(_PCM86_OLD) < sizeof(g_pcm86)){
 				memset((UINT8*)(&g_pcm86) + sizeof(_PCM86_OLD), 0, sizeof(g_pcm86) - sizeof(_PCM86_OLD)); // ‚È‚¢•”•ª‚Í0–„‚ß
 			}
-			g_pcm86.lastclock = g_pcm86.obsolate.lastclock_obsolate;
-			g_pcm86.stepclock = g_pcm86.obsolate.stepclock_obsolate;
+			g_pcm86.lastclock = g_pcm86.lastclock_obsolate;
+			g_pcm86.stepclock = g_pcm86.stepclock_obsolate;
 		}
 		if (nSaveFlags & FLAG_CS4231)
 		{
@@ -1923,7 +1923,6 @@ const SFENTRY	*tblterm;
 			opna_fmgen_setallvolumeRhythmTotal_linear(np2cfg.vol_rhythm * np2cfg.vol_master / 100);
 		}
 #endif
-		oplgen_setvol(np2cfg.vol_fm * np2cfg.vol_master / 100);
 	}
 	for (i = 0; i < _countof(g_opna); i++)
 	{

@@ -129,114 +129,13 @@ static void DDBlt_ColorFill(LPDIRECTDRAWSURFACE lpDst, LPRECT lpRect, LPDDBLTFX 
 }
 #endif
 
-static void getscreensize(int* screenwidth, int* screenheight, UINT scrnmode) {
-	UINT		fscrnmod;
-	int			width;
-	int			height;
-	int			scrnwidth;
-	int			scrnheight;
-	int			multiple;
-
-	if (scrnmode & SCRNMODE_FULLSCREEN) {
-		width = min(scrnstat.width, ddraw.width);
-		height = min(scrnstat.height, ddraw.height);
-
-		scrnwidth = width;
-		scrnheight = height;
-		fscrnmod = FSCRNCFG_fscrnmod & FSCRNMOD_ASPECTMASK;
-		switch (fscrnmod) {
-		default:
-		case FSCRNMOD_NORESIZE:
-			break;
-
-		case FSCRNMOD_ASPECTFIX8:
-			scrnwidth = (ddraw.width << 3) / width;
-			scrnheight = (ddraw.height << 3) / height;
-			multiple = min(scrnwidth, scrnheight);
-			scrnwidth = (width * multiple) >> 3;
-			scrnheight = (height * multiple) >> 3;
-			break;
-
-		case FSCRNMOD_ASPECTFIX:
-			scrnwidth = ddraw.width;
-			scrnheight = (scrnwidth * height) / width;
-			if (scrnheight >= ddraw.height) {
-				scrnheight = ddraw.height;
-				scrnwidth = (scrnheight * width) / height;
-			}
-			break;
-
-		case FSCRNMOD_INTMULTIPLE:
-			scrnwidth = (ddraw.width / width) * width;
-			scrnheight = (scrnwidth * height) / width;
-			if (scrnheight >= ddraw.height) {
-				scrnheight = (ddraw.height / height) * height;
-				scrnwidth = (scrnheight * width) / height;
-			}
-			break;
-
-		case FSCRNMOD_FORCE43:
-			if (ddraw.width * 3 > ddraw.height * 4) {
-				scrnwidth = ddraw.height * 4 / 3;
-				scrnheight = ddraw.height;
-			}
-			else {
-				scrnwidth = ddraw.width;
-				scrnheight = ddraw.width * 3 / 4;
-			}
-			break;
-
-		case FSCRNMOD_LARGE:
-			scrnwidth = ddraw.width;
-			scrnheight = ddraw.height;
-			break;
-		}
-	}
-	else {
-		width = min(scrnstat.width, ddraw.width);
-		height = min(scrnstat.height, ddraw.height);
-
-		multiple = scrnstat.multiple;
-		fscrnmod = FSCRNCFG_fscrnmod & FSCRNMOD_ASPECTMASK;
-		if (!(scrnmode & SCRNMODE_ROTATE)) {
-			scrnwidth = (width * multiple) >> 3;
-			scrnheight = (height * multiple) >> 3;
-			if (fscrnmod == FSCRNMOD_FORCE43) { // Force 4:3 Screen
-				if (((width * multiple) >> 3) * 3 < ((height * multiple) >> 3) * 4) {
-					scrnwidth = ((height * multiple) >> 3) * 4 / 3;
-					scrnheight = ((height * multiple) >> 3);
-				}
-				else {
-					scrnwidth = ((width * multiple) >> 3);
-					scrnheight = ((width * multiple) >> 3) * 3 / 4;
-				}
-			}
-		}
-		else {
-			scrnwidth = (height * multiple) >> 3;
-			scrnheight = (width * multiple) >> 3;
-			if (fscrnmod == FSCRNMOD_FORCE43) { // Force 4:3 Screen
-				if (((width * multiple) >> 3) * 4 < ((height * multiple) >> 3) * 3) {
-					scrnwidth = ((height * multiple) >> 3) * 3 / 4;
-					scrnheight = ((height * multiple) >> 3);
-				}
-				else {
-					scrnwidth = ((width * multiple) >> 3);
-					scrnheight = ((width * multiple) >> 3) * 4 / 3;
-				}
-			}
-		}
-	}
-	*screenwidth = scrnwidth;
-	*screenheight = scrnheight;
-}
-
 static void renewalclientsize(BOOL winloc) {
 
 	int			width;
 	int			height;
 	int			extend;
 	UINT		fscrnmod;
+	int			multiple;
 	int			scrnwidth;
 	int			scrnheight;
 	int			tmpcy;
@@ -251,12 +150,59 @@ static void renewalclientsize(BOOL winloc) {
 	if (ddraw.scrnmode & SCRNMODE_FULLSCREEN) {
 		ddraw.rect.right = width;
 		ddraw.rect.bottom = height;
-		getscreensize(&scrnwidth, &scrnheight, ddraw.scrnmode);
+		scrnwidth = width;
+		scrnheight = height;
 		if ((np2oscfg.paddingx)/* && (multiple == 8)*/)
 		{
 			extend = min(scrnstat.extend, ddraw.extend);
 		}
 		fscrnmod = FSCRNCFG_fscrnmod & FSCRNMOD_ASPECTMASK;
+		switch(fscrnmod) {
+			default:
+			case FSCRNMOD_NORESIZE:
+				break;
+
+			case FSCRNMOD_ASPECTFIX8:
+				scrnwidth = (ddraw.width << 3) / width;
+				scrnheight = (ddraw.height << 3) / height;
+				multiple = min(scrnwidth, scrnheight);
+				scrnwidth = (width * multiple) >> 3;
+				scrnheight = (height * multiple) >> 3;
+				break;
+
+			case FSCRNMOD_ASPECTFIX:
+				scrnwidth = ddraw.width;
+				scrnheight = (scrnwidth * height) / width;
+				if (scrnheight >= ddraw.height) {
+					scrnheight = ddraw.height;
+					scrnwidth = (scrnheight * width) / height;
+				}
+				break;
+				
+			case FSCRNMOD_INTMULTIPLE:
+				scrnwidth = (ddraw.width / width) * width;
+				scrnheight = (scrnwidth * height) / width;
+				if (scrnheight >= ddraw.height) {
+					scrnheight = (ddraw.height / height) * height;
+					scrnwidth = (scrnheight * width) / height;
+				}
+				break;
+				
+			case FSCRNMOD_FORCE43:
+				if(ddraw.width*3 > ddraw.height*4){
+					scrnwidth = ddraw.height*4/3;
+					scrnheight = ddraw.height;
+				}else{
+					scrnwidth = ddraw.width;
+					scrnheight = ddraw.width*3/4;
+				}
+				break;
+
+			case FSCRNMOD_LARGE:
+				scrnwidth = ddraw.width;
+				scrnheight = ddraw.height;
+				break;
+		}
 		ddraw.scrn.left = (ddraw.width - scrnwidth) / 2;
 		ddraw.scrn.top = (ddraw.height - scrnheight) / 2;
 		ddraw.scrn.right = ddraw.scrn.left + scrnwidth;
@@ -291,34 +237,51 @@ static void renewalclientsize(BOOL winloc) {
 		}
 	}
 	else {
-		int multiple;
 		fscrnmod = FSCRNCFG_fscrnmod & FSCRNMOD_ASPECTMASK;
 		multiple = scrnstat.multiple;
-		getscreensize(&scrnwidth, &scrnheight, ddraw.scrnmode);
 		if (!(ddraw.scrnmode & SCRNMODE_ROTATE)) {
 			if ((np2oscfg.paddingx)/* && (multiple == 8)*/) {
 				extend = min(scrnstat.extend, ddraw.extend);
 			}
-			ddraw.rect.left = 0;
+			scrnwidth = (width * multiple) >> 3;
+			scrnheight = (height * multiple) >> 3;
+			if(fscrnmod==FSCRNMOD_FORCE43) { // Force 4:3 Screen
+				if(((width * multiple) >> 3)*3 < ((height * multiple) >> 3)*4){
+					scrnwidth = ((height * multiple) >> 3)*4/3;
+					scrnheight = ((height * multiple) >> 3);
+				}else{
+					scrnwidth = ((width * multiple) >> 3);
+					scrnheight = ((width * multiple) >> 3)*3/4;
+				}
+			}
 			ddraw.rect.right = width + extend;
-			ddraw.rect.top = 0;
+			ddraw.rect.left = (multiple != 8 ? extend : 0);
 			ddraw.rect.bottom = height;
-			ddraw.scrn.left = (np2oscfg.paddingx - extend) * scrnstat.multiple / 8;
-			ddraw.scrn.top = np2oscfg.paddingy * scrnstat.multiple / 8;
+			ddraw.scrn.left = np2oscfg.paddingx - (multiple == 8 ? extend : 0);
+			ddraw.scrn.top = np2oscfg.paddingy;
 		}
 		else {
 			if ((np2oscfg.paddingy)/* && (multiple == 8)*/) {
 				extend = min(scrnstat.extend, ddraw.extend);
 			}
-			ddraw.rect.left = 0;
+			scrnwidth = (height * multiple) >> 3;
+			scrnheight = (width * multiple) >> 3;
+			if(fscrnmod==FSCRNMOD_FORCE43) { // Force 4:3 Screen
+				if(((width * multiple) >> 3)*4 < ((height * multiple) >> 3)*3){
+					scrnwidth = ((height * multiple) >> 3)*3/4;
+					scrnheight = ((height * multiple) >> 3);
+				}else{
+					scrnwidth = ((width * multiple) >> 3);
+					scrnheight = ((width * multiple) >> 3)*4/3;
+				}
+			}
 			ddraw.rect.right = height;
-			ddraw.rect.top = 0;
-			ddraw.rect.bottom = width + extend;
-			ddraw.scrn.left = np2oscfg.paddingx * scrnstat.multiple / 8;
-			ddraw.scrn.top = (np2oscfg.paddingy - extend) * scrnstat.multiple / 8;
+			ddraw.rect.bottom = width + (multiple == 8 ? extend : 0);
+			ddraw.scrn.left = np2oscfg.paddingx;
+			ddraw.scrn.top = np2oscfg.paddingy - (multiple == 8 ? extend : 0);
 		}
-		ddraw.scrn.right = np2oscfg.paddingx * scrnstat.multiple / 8 + scrnwidth;
-		ddraw.scrn.bottom = np2oscfg.paddingy * scrnstat.multiple / 8 + scrnheight;
+		ddraw.scrn.right = np2oscfg.paddingx + scrnwidth;
+		ddraw.scrn.bottom = np2oscfg.paddingy + scrnheight;
 
 		wlex = NULL;
 		if (winloc) {
@@ -851,11 +814,8 @@ BRESULT scrnmngDD_create(UINT8 scrnmode) {
 			if (scrnmode & SCRNMODE_ROTATE) {
 				ddsd.dwWidth = scrnstat.height;
 				ddsd.dwHeight = scrnstat.width;
-				ddsd.dwHeight++;
 			}
-			else {
-				ddsd.dwWidth++;
-			}
+			ddsd.dwWidth++; // +1‚µ‚È‚¢‚Æ‘Ê–Ú‚ç‚µ‚¢
 		}else{
 			if (!(scrnmode & SCRNMODE_ROTATE)) {
 				ddsd.dwWidth = 640 + 1;
@@ -1395,28 +1355,27 @@ void scrnmngDD_sizing(UINT side, RECT *rect) {
 	int		width;
 	int		height;
 	int		mul;
-	const int	mul_max = 255;
 
 	if ((side != WMSZ_TOP) && (side != WMSZ_BOTTOM)) {
 		width = rect->right - rect->left - scrnsizing.bx + SIZING_ADJUST;
 		width /= scrnsizing.cx;
 	}
 	else {
-		width = mul_max;
+		width = 16;
 	}
 	if ((side != WMSZ_LEFT) && (side != WMSZ_RIGHT)) {
 		height = rect->bottom - rect->top - scrnsizing.by + SIZING_ADJUST;
 		height /= scrnsizing.cy;
 	}
 	else {
-		height = mul_max;
+		height = 16;
 	}
 	mul = min(width, height);
 	if (mul <= 0) {
 		mul = 1;
 	}
-	else if (mul > mul_max) {
-		mul = mul_max;
+	else if (mul > 20) {
+		mul = 20;
 	}
 	width = scrnsizing.bx + (scrnsizing.cx * mul);
 	height = scrnsizing.by + (scrnsizing.cy * mul);
@@ -1602,7 +1561,7 @@ void scrnmngDD_bltwab() {
 			}
 		}else{
 			dst = &ddraw.rect;
-			exmgn = scrnstat.extend;
+			exmgn = (scrnstat.multiple == 8 ? scrnstat.extend : 0);
 		}
 		src.left = src.top = 0;
 
@@ -1616,8 +1575,8 @@ void scrnmngDD_bltwab() {
 			src.right = scrnstat.height;
 			src.bottom = scrnstat.width;
 			dstmp = *dst;
-			dstmp.top += exmgn;
-			dstmp.bottom = dstmp.top + scrnstat.width;
+			dstmp.left += exmgn;
+			dstmp.right = dstmp.left + scrnstat.height;
 		}
 		dd_enter_criticalsection();
 		if (ddraw.backsurf != NULL)

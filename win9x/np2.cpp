@@ -108,6 +108,20 @@
 
 #include	<process.h>
 
+#if defined(SUPPORT_ASYNC_CPU)
+extern "C" UINT32 pccore_asynccpu_drawskip;
+extern "C" UINT32 pccore_asynccpu_nowait;
+extern "C" UINT32 pccore_asynccpu_lastTimingValue;
+extern "C" UINT32 pccore_asynccpu_asyncOffset;
+
+static void setasyncoffset()
+{
+	UINT32 asynctgt = np2cfg.asynctgt;
+	if (asynctgt > 100) asynctgt = 100;
+	if (asynctgt < 1) asynctgt = 1;
+	pccore_asynccpu_asyncOffset = TIMING_MSSHIFT_VALUE * (100 - asynctgt) / 100;
+}
+#endif
 extern bool scrnmng_create_pending; // グラフィックレンダラ生成保留中
 
 
@@ -204,8 +218,6 @@ static	TCHAR		szClassName[] = _T("NP2-MainWindow");
 						1,
 #endif	// defined(SUPPORT_MULTITHREAD)
 						0, 200,
-						1,
-						0
 					};
 
 		OEMCHAR		fddfolder[MAX_PATH];
@@ -397,6 +409,7 @@ char *autokey_sendbuffer = NULL;
 int autokey_sendbufferlen = 0;
 int autokey_sendbufferpos = 0;
 int autokey_lastkanastate = 0;
+int autokey_kanjimode = 1; // 0=漢字無視, 1=BASIC, 2=DOS
 
 // オートラン抑制用
 static int WM_QueryCancelAutoPlay;
@@ -1365,14 +1378,30 @@ static void OnCommand(HWND hWnd, WPARAM wParam)
 			np2cfg.asynccpu = !np2cfg.asynccpu;
 			update |= SYS_UPDATECFG;
 			break;
-		case IDM_ASYNCCPU_LEVEL_MAX:
-			np2cfg.asynclvl = 100;
-			pccore_asynccpu_updatesettings(np2cfg.asynclvl);
+
+		case IDM_ASYNCCPU_MAX:
+			np2cfg.asynctgt = 100;
+			setasyncoffset();
 			update |= SYS_UPDATECFG;
 			break;
-		case IDM_ASYNCCPU_LEVEL_MIN:
-			np2cfg.asynclvl = 0;
-			pccore_asynccpu_updatesettings(np2cfg.asynclvl);
+		case IDM_ASYNCCPU_20:
+			np2cfg.asynctgt = 20;
+			setasyncoffset();
+			update |= SYS_UPDATECFG;
+			break;
+		case IDM_ASYNCCPU_30:
+			np2cfg.asynctgt = 30;
+			setasyncoffset();
+			update |= SYS_UPDATECFG;
+			break;
+		case IDM_ASYNCCPU_50:
+			np2cfg.asynctgt = 50;
+			setasyncoffset();
+			update |= SYS_UPDATECFG;
+			break;
+		case IDM_ASYNCCPU_70:
+			np2cfg.asynctgt = 70;
+			setasyncoffset();
 			update |= SYS_UPDATECFG;
 			break;
 #endif
@@ -3390,7 +3419,7 @@ void autoSendKey(){
 						}
 					}else if(0x80 <= sendchar){
 						// 多分2byte文字
-						if (np2oscfg.knjpaste)
+						if (autokey_kanjimode)
 						{
 							isKanji = 1;
 							if ((capslock ^ shift))
@@ -3415,7 +3444,7 @@ void autoSendKey(){
 							}
 							UINT8 sendchar2 = ((UINT8*)autokey_sendbuffer)[autokey_sendbufferpos + 1];
 							unsigned short jiscode = sjis_to_jis(((unsigned short)sendchar << 8) | (unsigned short)sendchar2);
-							UINT8 hexToAsc[] = { '0', '1' ,'2' ,'3' ,'4' ,'5' ,'6' ,'7' ,'8' ,'9' ,'a' ,'b' ,'c' ,'d' ,'e' ,'f' };
+							UINT8 hexToAsc[] = { '0','1' ,'2' ,'3' ,'4' ,'5' ,'6' ,'7' ,'8' ,'9' ,'a' ,'b' ,'c' ,'d' ,'e' ,'f' };
 							keystat_senddata(0x00 | vkeylist[hexToAsc[((jiscode >> 12) & 0xf)]]);
 							keystat_senddata(0x80 | vkeylist[hexToAsc[((jiscode >> 12) & 0xf)]]);
 							keystat_senddata(0x00 | vkeylist[hexToAsc[((jiscode >> 8) & 0xf)]]);
@@ -3424,7 +3453,7 @@ void autoSendKey(){
 							keystat_senddata(0x80 | vkeylist[hexToAsc[((jiscode >> 4) & 0xf)]]);
 							keystat_senddata(0x00 | vkeylist[hexToAsc[((jiscode) & 0xf)]]);
 							keystat_senddata(0x80 | vkeylist[hexToAsc[((jiscode) & 0xf)]]);
-							if (np2oscfg.knjpaste == 2)
+							if (autokey_kanjimode == 2)
 							{
 								// DOSは1文字毎に解除される
 								kanjimode = 0;
@@ -3684,7 +3713,7 @@ static void processasyncwait()
 {
 #if defined(SUPPORT_ASYNC_CPU)
 	UINT32 rawTiming = timing_getcount_raw();
-	pccore_asynccpustat.lastTimingValue = rawTiming;
+	pccore_asynccpu_lastTimingValue = rawTiming + pccore_asynccpu_asyncOffset;
 #endif
 }
 
@@ -3952,6 +3981,9 @@ void loadNP2INI(const OEMCHAR *fname){
 #endif
 	
 	SetTickCounterMode(np2oscfg.tickmode);
+#if defined(SUPPORT_ASYNC_CPU)
+	setasyncoffset();
+#endif
 	pccore_reset();
 	np2_SetUserPause(0);
 	
@@ -4053,8 +4085,8 @@ static unsigned int __stdcall np2_multithread_EmulatorThreadMain(LPVOID vdParam)
 		if (!np2stopemulate && !np2_multithread_pauseemulation && !np2userpause) {
 			UINT32 drawskip = (np2oscfg.DRAW_SKIP == 0 ? 1 : np2oscfg.DRAW_SKIP);
 #if defined(SUPPORT_ASYNC_CPU)
-			pccore_asynccpustat.drawskip = drawskip;
-			pccore_asynccpustat.nowait = np2oscfg.NOWAIT;
+			pccore_asynccpu_drawskip = drawskip;
+			pccore_asynccpu_nowait = np2oscfg.NOWAIT;
 #endif
 			np2_multithread_pausing = false;
 			if (np2oscfg.NOWAIT) {
@@ -4420,6 +4452,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #endif
 
 	SetTickCounterMode(np2oscfg.tickmode);
+#if defined(SUPPORT_ASYNC_CPU)
+	setasyncoffset();
+#endif
 	pccore_reset();
 	np2_SetUserPause(0);
 	
@@ -4613,8 +4648,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 					{
 						UINT32 drawskip = (np2oscfg.DRAW_SKIP == 0 ? 1 : np2oscfg.DRAW_SKIP);
 #if defined(SUPPORT_ASYNC_CPU)
-						pccore_asynccpustat.drawskip = drawskip;
-						pccore_asynccpustat.nowait = np2oscfg.NOWAIT;
+						pccore_asynccpu_drawskip = drawskip;
+						pccore_asynccpu_nowait = np2oscfg.NOWAIT;
 #endif
 						if (np2oscfg.NOWAIT)
 						{

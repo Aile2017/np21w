@@ -126,8 +126,6 @@ void fmboard_updatevolume(){
 	{
 		rhythm_update(&g_opna[i].rhythm);
 	}
-
-	oplgen_setvol(np2cfg.vol_fm * np2cfg.vol_master / 100);
 }
 
 

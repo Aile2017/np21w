@@ -44,7 +44,6 @@ static const UINT clk20_128[] = {
 
 	PCM86CFG	pcm86cfg;
 
-	UINT64 datawriteirqwait = 0;
 	static SINT32 bufunferflag = 0;
 	static SINT32 vbufunferflag = 0;
 
@@ -121,12 +120,6 @@ void pcm86gen_update(void)
 	pcm86_setpcmrate(pcm86->fifo);
 }
 
-void pcm86_setwaittime()
-{
-	// WORKAROUND: データ書き込みから割り込み発生までの時間が短すぎると不具合が起こる場合があるのでわざと遅延 値に根拠はなし
-	datawriteirqwait = 20000 * pccore.multiple;
-}
-
 void pcm86_setpcmrate(REG8 val)
 {
 	PCM86 pcm86 = &g_pcm86;
@@ -141,8 +134,6 @@ void pcm86_setpcmrate(REG8 val)
 		pcm86->div = (rate << (PCM86_DIVBIT - 3)) / pcm86cfg.rate;
 		pcm86->div2 = (pcm86cfg.rate << (PCM86_DIVBIT + 3)) / rate;
 	}
-
-	pcm86_setwaittime();
 }
 
 void pcm86_cb(NEVENTITEM item)
@@ -339,8 +330,7 @@ void pcm86_changeclock(UINT oldmultiple)
 			past = (cur + pastCycle - pcm86->lastclock) % pastCycle;
 			pcm86->lastclock = (cur + pastCycle - (past * newstepclock + pcm86->stepclock / 2) / pcm86->stepclock) % pastCycle; // 補正
 			pcm86->stepclock = newstepclock;
-
-			pcm86_setwaittime();
+			//TRACEOUT(("changed"));
 		}else{
 			//pcm86->stepclock = ((UINT64)pccore.baseclock << 6);
 			//pcm86->stepclock /= 44100;
@@ -473,11 +463,7 @@ void SOUNDCALL pcm86gen_checkbuf(PCM86 pcm86, UINT nCount)
 BOOL pcm86gen_intrq(int fromFMTimer)
 {
 	PCM86 pcm86 = &g_pcm86;
-	UINT64 curclk = CPU_CLOCK + CPU_BASECLOCK - CPU_REMCLOCK;
-	// WORKAROUND: データ書き込みから割り込み発生までの時間が短すぎると不具合が起こる場合があるのでわざと遅延
-	// XXX: 本当は循環しているのでg_pcm86.lastclockforwaitセットから時間が経ちすぎると不味い
-	// しかし仮に500MHzとしたときUINT64が1周するのは40万日くらいなので事実上問題ない
-	if (!(pcm86->fifo & 0x20) || !(curclk - g_pcm86.lastclockforwait >= datawriteirqwait))
+	if (!(pcm86->fifo & 0x20))
 	{
 		return FALSE;
 	}

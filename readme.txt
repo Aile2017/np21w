@@ -1,10 +1,11 @@
 コンパイルに必要なもの
-VST3_SDK（win9x/compiler.hから#define SUPPORT_VSTiを消せば省略可）
-WinDDK（実CDドライブSUPPORT_PHYSICAL_CDDRV使用の際にコンパイル失敗する場合）
+VST3_SDK
+WinDDK
 NASM
-YASM（x64ビルドに必須）
+YASM
 
-vs2010, vs2019プロジェクトのみメンテナンスされています。。
+vs2019プロジェクトのみメンテナンスされています。
+vs2010はDebug以外は通ると思います。
 
 // ---- 定義
 
