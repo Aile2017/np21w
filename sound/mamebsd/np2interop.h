@@ -1,11 +1,9 @@
 /**
  * @file	np2interop.h
- * @brief	Implementation of np2 <-> mame opl (BSD-licensed Yamaha FM sound cores)
+ * @brief	Implementation of np2 <-> mame opl 
  */
 
 #pragma once
-
-#ifdef USE_MAME_BSD
 
 
 #ifdef __cplusplus
@@ -26,4 +24,3 @@ int YMF262FlagLoad(void* chipptr, void* srcbuf, int size);
 }
 #endif
 
-#endif

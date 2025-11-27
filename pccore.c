@@ -195,8 +195,7 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 				1,
 #endif
 				100,
-				TEXT(""),
-				0
+				TEXT("")
 	};
 
 	PCCORE	pccore = {	PCBASECLOCK25, PCBASEMULTIPLE,
@@ -739,30 +738,9 @@ void pccore_reset(void) {
 	// mov cs,xx許可フラグ
 	i386cpuid.allow_movCS = np2cfg.allowMOVCS;
 
-	// FPU種類を設定 使えないなら別のタイプへ変更する
+	// FPU種類を設定
 	i386cpuid.fpu_type = np2cfg.fpu_type;
-#if !defined(SUPPORT_FPU_SOFTFLOAT) && !defined(SUPPORT_FPU_SOFTFLOAT3)
-	if (i386cpuid.fpu_type == FPU_TYPE_SOFTFLOAT) {
-		i386cpuid.fpu_type = FPU_TYPE_DOSBOX2;
-	}
-#elif !defined(SUPPORT_FPU_DOSBOX2)
-	if (i386cpuid.fpu_type == FPU_TYPE_DOSBOX2) {
-#if defined(SUPPORT_FPU_SOFTFLOAT) || defined(SUPPORT_FPU_SOFTFLOAT3)
-		i386cpuid.fpu_type = FPU_TYPE_SOFTFLOAT;
-#else
-		i386cpuid.fpu_type = FPU_TYPE_DOSBOX;
-#endif
-	}
-#elif !defined(SUPPORT_FPU_DOSBOX)
-	if (i386cpuid.fpu_type == FPU_TYPE_DOSBOX) {
-#if defined(SUPPORT_FPU_SOFTFLOAT) || defined(SUPPORT_FPU_SOFTFLOAT3)
-		i386cpuid.fpu_type = FPU_TYPE_SOFTFLOAT;
-#else
-		i386cpuid.fpu_type = FPU_TYPE_DOSBOX2;
-#endif
-	}
-#endif
-	fpu_initialize(1);
+	fpu_initialize();
 #endif
 
 	pccore_set(&np2cfg);

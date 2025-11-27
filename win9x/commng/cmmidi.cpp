@@ -285,6 +285,16 @@ CComMidi::CComMidi()
 CComMidi::~CComMidi()
 {
 	midiallnoteoff();
+	if (m_pMidiOut)
+	{
+		delete m_pMidiOut;
+		m_pMidiOut = NULL;
+	}
+	if (m_pMidiIn)
+	{
+		delete m_pMidiIn;
+		m_pMidiIn = NULL;
+	}
 	if (m_activesenseExitRequestEvent && m_activesenseExitEvent)
 	{
 		SetEvent(m_activesenseExitRequestEvent);
@@ -298,16 +308,6 @@ CComMidi::~CComMidi()
 		m_activesenseThread = NULL;
 		m_activesenseExitRequestEvent = NULL;
 		m_activesenseExitEvent = NULL;
-	}
-	if (m_pMidiOut)
-	{
-		delete m_pMidiOut;
-		m_pMidiOut = NULL;
-	}
-	if (m_pMidiIn)
-	{
-		delete m_pMidiIn;
-		m_pMidiIn = NULL;
 	}
 }
 

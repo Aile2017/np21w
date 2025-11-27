@@ -73,15 +73,7 @@
 #endif
 
 #ifdef USE_MAME
-#ifdef USE_MAME_BSD
-#if _MSC_VER < 1900
-#include "sound/mamebsdsub/np2interop.h"
-#else
 #include "sound/mamebsd/np2interop.h"
-#endif
-#else
-#include "sound/mame/np2interop.h"
-#endif
 #endif
 
 extern int sxsi_unittbl[];
@@ -1077,16 +1069,17 @@ static int flagload_fm(STFLAGH sfh, const SFENTRY *tbl)
 				int bufsize = 0;
 				ret |= statflag_read(sfh, &bufsize, sizeof(SINT32));
 				if(bufsize!=0){
-					buffer = malloc(bufsize);
-					ret |= statflag_read(sfh, buffer, bufsize);
-					if (g_mame_opl3[i]) {
-						if (!YMF262FlagLoad(g_mame_opl3[i], buffer, bufsize)) {
-							free(buffer);
-							ret = STATFLAG_FAILURE;
-							break;
+					if(YMF262FlagSave(g_mame_opl3[i], NULL) != bufsize){
+						ret = STATFLAG_FAILURE;
+						break;
+					}else{
+						buffer = malloc(bufsize);
+						ret |= statflag_read(sfh, buffer, bufsize);
+						if(g_mame_opl3[i]){
+							YMF262FlagLoad(g_mame_opl3[i], buffer, bufsize);
 						}
+						free(buffer);
 					}
-					free(buffer);
 				}
 			}
 #endif
@@ -1155,16 +1148,17 @@ static int flagload_fm(STFLAGH sfh, const SFENTRY *tbl)
 				int bufsize = 0;
 				ret |= statflag_read(sfh, &bufsize, sizeof(SINT32));
 				if(bufsize!=0){
-					buffer = malloc(bufsize);
-					ret |= statflag_read(sfh, buffer, bufsize);
-					if (g_mame_opl3[i]) {
-						if (!YMF262FlagLoad(g_mame_opl3[i], buffer, bufsize)) {
-							free(buffer);
-							ret = STATFLAG_FAILURE;
-							break;
+					if(YMF262FlagSave(g_mame_opl3[i], NULL) != bufsize){
+						ret = STATFLAG_FAILURE;
+						break;
+					}else{
+						buffer = malloc(bufsize);
+						ret |= statflag_read(sfh, buffer, bufsize);
+						if(g_mame_opl3[i]){
+							YMF262FlagLoad(g_mame_opl3[i], buffer, bufsize);
 						}
+						free(buffer);
 					}
-					free(buffer);
 				}
 			}
 #endif
@@ -1828,12 +1822,7 @@ const SFENTRY	*tblterm;
 
 	// ステートセーブ互換性維持用
 	if(pccore.maxmultiple == 0) pccore.maxmultiple = pccore.multiple;
-
-#if defined(CPUCORE_IA32)
-	// FPUロード
-	fpu_statesave_load();
-#endif
-
+	
 #if defined(SUPPORT_IA32_HAXM)
 	memcpy(vramex, vramex_base, sizeof(vramex_base));
 	i386haxfunc_vcpu_setREGs(&np2haxstat.state);
@@ -1889,7 +1878,7 @@ const SFENTRY	*tblterm;
 #if defined(USE_CPU_EIPMASK)
 	CPU_EIPMASK = CPU_STATSAVE.cpu_inst_default.op_32 ? 0xffffffff : 0xffff;
 #endif
-	fpu_initialize(0);
+	fpu_initialize();
 #endif
 
 #if defined(SUPPORT_NET)

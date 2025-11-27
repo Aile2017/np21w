@@ -183,58 +183,44 @@ static void ct1741dsp_dspin_push(UINT8 dat)
 	}
 }
 
-// DMA転送開始する
-static void ct1741dsp_setdma(CT1741_DMAMODE mode, BOOL autoinit, BOOL stereo, BOOL input)
+// DMA転送開始準備をする
+static void ct1741dsp_setdma(CT1741_DMAMODE mode, BOOL autoinit, BOOL stereo)
 {
+	g_sb16.dsp_info.mode = CT1741_DSPMODE_DMA;
 	g_sb16.dsp_info.dma.dmach = dmac.dmach + g_sb16.dmachnum; // DMA割り当て
-	if (g_sb16.dsp_info.mode != CT1741_DSPMODE_NONE)
+	g_sb16.dsp_info.dma.lastautoinit = g_sb16.dsp_info.dma.autoinit = autoinit;
+	g_sb16.dsp_info.dma.stereo = stereo;
+	g_sb16.dsp_info.dma.mode = mode;
+
+	if (mode != CT1741_DMAMODE_NONE)
 	{
 		// DMA開始後に設定を変えてくる場合があるので、その時は一旦止めて設定し直し
 		g_sb16.dsp_info.dma.dmach->ready = 0;
 		dmac_check();
 	}
-	g_sb16.dsp_info.mode = input ? CT1741_DSPMODE_DMA_IN : CT1741_DSPMODE_DMA;
-	g_sb16.dsp_info.dma.lastautoinit = g_sb16.dsp_info.dma.autoinit = !!autoinit;
-	g_sb16.dsp_info.dma.stereo = !!stereo;
-	g_sb16.dsp_info.dma.mode = mode;
 
 	// DMA開始
 	g_sb16.dsp_info.dma.dmach->ready = 1;
 	dmac_check();
 }
 
-// DMA転送を再設定する
-static void ct1741dsp_updatedma()
-{
-	ct1741dsp_setdma(g_sb16.dsp_info.dma.mode, g_sb16.dsp_info.dma.autoinit, g_sb16.dsp_info.dma.stereo, g_sb16.dsp_info.mode == CT1741_DSPMODE_DMA_IN);
-}
-
 // DSPコマンドを実行
 static void ct1741dsp_exec_command()
 {
 	UINT8 cmd = g_sb16.dsp_info.cmd;
-	TRACEOUT(("CT1741 DSP CMD=0x%02x", cmd));
 	if (DSP_CMD_PROGRAM_16BIT_DMA_BEGIN <= cmd && cmd <= DSP_CMD_PROGRAM_16BIT_DMA_END) {
 		// Prigram 16bit DMA
 		ct1741_playinfo.bufdatasrem = 0;
 		g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[2] << 8) | g_sb16.dsp_info.dspin.data[1]) + 1;
-		ct1741dsp_setdma(CT1741_DMAMODE_16, g_sb16.dsp_info.cmd & 0x4, g_sb16.dsp_info.dspin.data[0] & 0x20, g_sb16.dsp_info.cmd & 0x8);
+		ct1741dsp_setdma(CT1741_DMAMODE_16, (g_sb16.dsp_info.cmd & 0x4) > 0, (g_sb16.dsp_info.dspin.data[0] & 0x20) > 0);
 		g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dmachnum & 0xe0) ? 0x2 : 0x1; // High-DMAが有効な場合はHigh-DMAを使用
-		if (g_sb16.dsp_info.cmd & 0x8) {
-			// 入力の場合、即座に割り込むことにする
-			ct1741_setpicirq();
-		}
 	}
 	else if (DSP_CMD_PROGRAM_8BIT_DMA_BEGIN <= cmd && cmd <= DSP_CMD_PROGRAM_8BIT_DMA_END) {
 		// Prigram 8bit DMA
 		ct1741_playinfo.bufdatasrem = 0;
 		g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[2] << 8) | g_sb16.dsp_info.dspin.data[1]) + 1;
-		ct1741dsp_setdma(CT1741_DMAMODE_8, g_sb16.dsp_info.cmd & 0x4, g_sb16.dsp_info.dspin.data[0] & 0x20, g_sb16.dsp_info.cmd & 0x8);
+		ct1741dsp_setdma(CT1741_DMAMODE_8, (g_sb16.dsp_info.cmd & 0x4) > 0, (g_sb16.dsp_info.dspin.data[0] & 0x20) > 0);
 		g_sb16.mixreg[0x82] |= 0x1;
-		if (g_sb16.dsp_info.cmd & 0x8) {
-			// 入力の場合、即座に割り込むことにする
-			ct1741_setpicirq();
-		}
 	}
 	else {
 		switch (g_sb16.dsp_info.cmd) {
@@ -287,31 +273,29 @@ static void ct1741dsp_exec_command()
 		case DSP_CMD_8BIT_DMA_SINGLE:
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
 			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE);
 			break;
 		case DSP_CMD_2BITADPCM_DMA_SINGLE:
 		case DSP_CMD_2BITADPCM_DMA_SINGLE_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_2, FALSE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_2, FALSE, FALSE);
 			break;
 		case DSP_CMD_8BIT_DMA_AUTOINIT:
 			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, TRUE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_8, TRUE, FALSE);
 			break;
 		case DSP_CMD_2BITADPCM_DMA_AUTOINIT_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_2, TRUE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_2, TRUE, FALSE);
 			break;
 
 		case DSP_CMD_8BIT_PIO_IN:
 			// not implemented yet
 			break;
 		case DSP_CMD_8BIT_DMA_SINGLE_IN:
-			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE, TRUE);
 			break;
 		case DSP_CMD_POLLING_MIDI_IN:
 		case DSP_CMD_INTERRUPT_MIDI_IN:
@@ -337,7 +321,7 @@ static void ct1741dsp_exec_command()
 		case DSP_CMD_SET_DS_TRANSFER_TIMECONSTANT:
 			g_sb16.dsp_info.freq = (1000000 / (256 - g_sb16.dsp_info.dspin.data[0]));
 			if (g_sb16.dsp_info.dma.mode != CT1741_DMAMODE_NONE && g_sb16.dsp_info.dma.autoinit) {
-				ct1741dsp_updatedma();
+				ct1741dsp_setdma(g_sb16.dsp_info.dma.mode, g_sb16.dsp_info.dma.autoinit, g_sb16.dsp_info.dma.stereo);
 			}
 			break;
 		case DSP_CMD_SET_DS_OUT_SAMPLINGRATE:
@@ -352,23 +336,23 @@ static void ct1741dsp_exec_command()
 		case DSP_CMD_4BITADPCM_DMA_SINGLE_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_4, FALSE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_4, FALSE, FALSE);
 			break;
 		case DSP_CMD_3BITADPCM_DMA_SINGLE:
 		case DSP_CMD_3BITADPCM_DMA_SINGLE_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_3, FALSE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_3, FALSE, FALSE);
 			break;
 		case DSP_CMD_4BITADPCM_DMA_AUTOINIT_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_4, TRUE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_4, TRUE, FALSE);
 			break;
 		case DSP_CMD_3BITADPCM_DMA_AUTOINIT_WITH_REF:
 			ct1741_playinfo.bufdatasrem = 0;
 			g_sb16.dsp_info.dma.total = ((g_sb16.dsp_info.dspin.data[1] << 8) | g_sb16.dsp_info.dspin.data[0]) + 1;
-			ct1741dsp_setdma(CT1741_DMAMODE_3, TRUE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_3, TRUE, FALSE);
 			break;
 
 		case DSP_CMD_PAUSE_DAC_DURATION:
@@ -377,19 +361,17 @@ static void ct1741dsp_exec_command()
 
 		case DSP_CMD_8BIT_HIGHSPEED_DMA_AUTOINIT:
 			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, TRUE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_8, TRUE, FALSE);
 			break;
 		case DSP_CMD_8BIT_HIGHSPEED_DMA_SINGLE:
 			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE, FALSE);
+			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE);
 			break;
 		case DSP_CMD_8BIT_HIGHSPEED_DMA_AUTOINIT_IN:
-			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, TRUE, FALSE, TRUE);
+			// not implemented yet
 			break;
 		case DSP_CMD_8BIT_HIGHSPEED_DMA_SINGLE_IN:
-			ct1741_playinfo.bufdatasrem = 0;
-			ct1741dsp_setdma(CT1741_DMAMODE_8, FALSE, FALSE, TRUE);
+			// not implemented yet
 			break;
 
 		case DSP_CMD_SET_MONO:
@@ -423,22 +405,10 @@ static void ct1741dsp_exec_command()
 			break;
 		case DSP_CMD_EXIT_16BIT_DMA_AUTOINIT:
 		case DSP_CMD_EXIT_8BIT_DMA_AUTOINIT:
-		{
-			// 停止した瞬間までに送られていた分は再生する
-#if defined(SUPPORT_MULTITHREAD)
-			ct1741cs_enter_criticalsection();
-#endif
-			if (g_sb16.dsp_info.dma.bufdatas > g_sb16.dsp_info.dma.total || g_sb16.dsp_info.dma.total == 65536) {
-				// WORKAROUND: バッファを捨てて停止する。この処理をするとWin3.1で後ろが切れる。しないとWin9x DirectSoundで末尾にノイズ（ダブり）が入る
-				g_sb16.dsp_info.dma.bufdatas = 0;
-				g_sb16.dsp_info.dma.dmach->ready = 0;
-			}
-			g_sb16.dsp_info.dma.autoinit = FALSE; // 本来は次の割り込みタイミングで停止らしい
-#if defined(SUPPORT_MULTITHREAD)
-			ct1741cs_leave_criticalsection();
-#endif
+			ct1741_playinfo.bufdatasrem = g_sb16.dsp_info.dma.bufdatas; // 停止した瞬間までに送られていた分は再生する
+			g_sb16.dsp_info.dma.autoinit = FALSE; // Should stop itself
+			g_sb16.dsp_info.dma.mode = CT1741_DMAMODE_NONE;
 			break;
-		}
 
 		case DSP_CMD_GET_DSP_ID:
 			ct1741dsp_dspout_clear();
@@ -472,13 +442,13 @@ static void ct1741dsp_exec_command()
 		case DSP_CMD_GEN_8BIT_IRQ:
 			ct1741dsp_dspout_clear();
 			ct1741dsp_dspout_push(0xaa);
-			ct1741_setpicirq();
+			ct1741_setpicirq(g_sb16.dmairq);
 			g_sb16.mixreg[0x82] |= 1;
 			break;
 		case DSP_CMD_GEN_16BIT_IRQ:
 			ct1741dsp_dspout_clear();
 			ct1741dsp_dspout_push(0xaa);
-			ct1741_setpicirq();
+			ct1741_setpicirq(g_sb16.dmairq);
 			g_sb16.mixreg[0x82] |= 2;
 			break;
 		default:
@@ -491,7 +461,7 @@ static void ct1741dsp_exec_command()
 }
 
 // DSPをリセット
-static void ct1741dsp_reset(BOOL ioreset)
+static void ct1741dsp_reset(void)
 {
 	g_sb16.dsp_info.mode = CT1741_DSPMODE_NONE;
 	g_sb16.dsp_info.freq = CT1741_DSP_SAMPLES_DEFAULT;
@@ -501,17 +471,6 @@ static void ct1741dsp_reset(BOOL ioreset)
 	g_sb16.dsp_info.uartmode = 0;
 	g_sb16.dsp_info.dma.autoinit = FALSE;
 	g_sb16.dsp_info.dma.lastautoinit = FALSE;
-	if (ioreset) {
-		if (g_sb16.dsp_info.dma.dmach) {
-			g_sb16.dsp_info.dma.dmach->ready = 0;
-			dmac_check();
-			if (g_sb16.dmachnum != 0xff) {
-				dmac.stat |= (1 << g_sb16.dmachnum);
-			}
-			g_sb16.mixreg[0x82] &= ~3;
-			ct1741_resetpicirq();
-		}
-	}
 }
 
 // ***** DSP I/O Ports *****
@@ -522,7 +481,7 @@ static void IOOUTCALL ct1741dsp_write_reset(UINT port, REG8 dat)
 	TRACEOUT(("CT1741 DSP Write Reset"));
 	if ((dat & 0x01)) {
 		/* status reset */
-		ct1741dsp_reset(TRUE);
+		ct1741dsp_reset();
 		g_sb16.dsp_info.resetout = CT1741_DSPRST_RESET;
 	}
 	else {
@@ -534,7 +493,7 @@ static void IOOUTCALL ct1741dsp_write_reset(UINT port, REG8 dat)
 
 	if (dat == 0xc6) {
 		ct1741dsp_dspout_clear();
-		ct1741dsp_reset(TRUE);
+		ct1741dsp_reset();
 		g_sb16.dsp_info.resetout = CT1741_DSPRST_SPECIAL;
 	}
 }
@@ -606,7 +565,6 @@ static REG8 IOINPCALL ct1741dsp_read_wstatus(UINT port)
 /* DSP read read status (8 bit) */
 static REG8 IOINPCALL ct1741dsp_read_rstatus(UINT port)
 {
-	TRACEOUT(("CT1741 DSP read read status"));
 	// 詳細不明
 	if (g_sb16.dsp_info.cmd_o == 0xf2) {
 		g_sb16.dsp_info.cmd_o = 0;
@@ -615,7 +573,7 @@ static REG8 IOINPCALL ct1741dsp_read_rstatus(UINT port)
 	// 割り込みを解除。bit0は8-bit用
 	if (g_sb16.mixreg[0x82] & 1) {
 		g_sb16.mixreg[0x82] &= ~1;
-		ct1741_resetpicirq();
+		ct1741_resetpicirq(g_sb16.dmairq);
 	}
 
 	if (g_sb16.dsp_info.dspout.datalen)
@@ -627,11 +585,10 @@ static REG8 IOINPCALL ct1741dsp_read_rstatus(UINT port)
 /* DSP read read status (16 bit) */
 static REG8 IOINPCALL ct1741dsp_read_rstatus16(UINT port)
 {
-	TRACEOUT(("CT1741 DSP read read status16"));
 	// 割り込みを解除。bit1は16-bit用
 	if (g_sb16.mixreg[0x82] & 2) { 
 		g_sb16.mixreg[0x82] &= ~2;
-		ct1741_resetpicirq();
+		ct1741_resetpicirq(g_sb16.dmairq);
 	}
 
 	return 0xff;
@@ -640,17 +597,13 @@ static REG8 IOINPCALL ct1741dsp_read_rstatus16(UINT port)
 void ct1741io_reset(void)
 {
 	ct1741dsp_create_cmdlentbl();
-	ct1741dsp_reset(FALSE);
+	ct1741dsp_reset();
 	g_sb16.dsp_info.dmairq = ct1741_get_dma_irq();
 	g_sb16.dsp_info.dmachnum = ct1741_get_dma_ch() & 0xf; // High DMAはDefaultで無効
 	g_sb16.dsp_info.resetout = CT1741_DSPRST_NORMAL;
-	if (g_sb16.dmachnum == 0 || g_sb16.dmachnum == 3) {
-		g_sb16.dsp_info.dma.dmach = dmac.dmach + g_sb16.dmachnum; // DMA割り当て
-		dmac_attach(DMADEV_CT1741, g_sb16.dmachnum);
-	}
+	dmac_attach(DMADEV_CT1741, g_sb16.dmachnum);
 	g_sb16.dsp_info.dma.bufsize = CT1741_DMA_BUFSIZE;
 	g_sb16.dsp_info.dma.rate2 = ct1741_playinfo.playrate;
-	g_sb16.dsp_info.dma.bufdatas = 0;
 	ct1741_playinfo.playwaitcounter = 0;
 	ct1741_playinfo.bufdatasrem = 0;
 }
