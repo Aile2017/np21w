@@ -54,11 +54,23 @@ class opl3bsd {
 public:
 	opl3bsd() :
 		m_chip(new chip_wrapper<ymfm::ymf262>()),
-		m_data()
+		m_data(),
+		m_output(nullptr),
+		m_outputlen(0)
 	{
+		m_outputlen = 4096;
+		m_output = new ymfm::ymf262::output_data[m_outputlen];
+	}
+	~opl3bsd()
+	{
+		if (m_output) {
+			delete[] m_output;
+		}
 	}
 
 	std::unique_ptr<chip_wrapper<ymfm::ymf262>> m_chip;
+	ymfm::ymf262::output_data* m_output;
+	int m_outputlen;
 	OPL3BSD_EX m_data;
 };
 
@@ -291,23 +303,38 @@ void YMF262UpdateOne(void* chipptr, INT16** buffers, int length)
 	chipbsd->m_data.fmcounter_rem = fmlengthf - fmlength;
 
 	if (fmlength > 0) {
-		ymfm::ymf262::output_data* output = (ymfm::ymf262::output_data*)malloc(sizeof(ymfm::ymf262::output_data) * fmlength);
+		if (fmlength > chipbsd->m_outputlen) {
+			if (chipbsd->m_output) {
+				delete[] (chipbsd->m_output);
+			}
+			chipbsd->m_outputlen = fmlength;
+			chipbsd->m_output = new ymfm::ymf262::output_data[chipbsd->m_outputlen];
+		}
+		ymfm::ymf262::output_data* output = chipbsd->m_output;
 		if (output == NULL) return;
 
-		chipcore.generate(output, fmlength);
-		for (int i = 0; i < length; i++) {
-			int srcIndex = (int)((double)i * chipbsd->m_data.fmrate / chipbsd->m_data.playrate);
-			buffers[0][i] = output[srcIndex].data[0] / OPL3_VOLUME_ADJUST;
-			buffers[1][i] = output[srcIndex].data[1] / OPL3_VOLUME_ADJUST;
-			buffers[2][i] = output[srcIndex].data[2] / OPL3_VOLUME_ADJUST;
-			buffers[3][i] = output[srcIndex].data[3] / OPL3_VOLUME_ADJUST;
-		}
-		chipbsd->m_data.lastsample[0] = output[fmlength - 1].data[0];
-		chipbsd->m_data.lastsample[1] = output[fmlength - 1].data[1];
-		chipbsd->m_data.lastsample[2] = output[fmlength - 1].data[2];
-		chipbsd->m_data.lastsample[3] = output[fmlength - 1].data[3];
+		int32_t hasdata = 0;
+		chipcore.generate(output, fmlength, &hasdata);
 
-		free(output);
+		if (hasdata) {
+			for (int i = 0; i < length; i++) {
+				int srcIndex = (int)((double)i * chipbsd->m_data.fmrate / chipbsd->m_data.playrate);
+				buffers[0][i] = output[srcIndex].data[0] / OPL3_VOLUME_ADJUST;
+				buffers[1][i] = output[srcIndex].data[1] / OPL3_VOLUME_ADJUST;
+				buffers[2][i] = output[srcIndex].data[2] / OPL3_VOLUME_ADJUST;
+				buffers[3][i] = output[srcIndex].data[3] / OPL3_VOLUME_ADJUST;
+			}
+			chipbsd->m_data.lastsample[0] = output[fmlength - 1].data[0];
+			chipbsd->m_data.lastsample[1] = output[fmlength - 1].data[1];
+			chipbsd->m_data.lastsample[2] = output[fmlength - 1].data[2];
+			chipbsd->m_data.lastsample[3] = output[fmlength - 1].data[3];
+		}
+		else {
+			memset(buffers[0], 0, sizeof(INT16) * length);
+			memset(buffers[1], 0, sizeof(INT16) * length);
+			memset(buffers[2], 0, sizeof(INT16) * length);
+			memset(buffers[3], 0, sizeof(INT16) * length);
+		}
 	}
 	else {
 		for (int i = 0; i < length; i++) {
