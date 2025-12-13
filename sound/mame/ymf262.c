@@ -2508,7 +2508,7 @@ void YMF262Shutdown(void *chip)
 {
 	OPL3Destroy((OPL3*)chip);
 }
-void YMF262ResetChip(void *chip)
+void YMF262ResetChip(void *chip, int samplerate)
 {
 	OPL3ResetChip((OPL3*)chip);
 }
