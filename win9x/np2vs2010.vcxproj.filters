@@ -247,6 +247,12 @@
     <Filter Include="ヘッダー ファイル\network">
       <UniqueIdentifier>{851cf1df-2a92-4676-9f39-c8030611fa29}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ヘッダー ファイル\sound\fmgen">
+      <UniqueIdentifier>{1fbae04d-6163-4fc0-99e3-af4a99fad012}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\sound\mame">
+      <UniqueIdentifier>{69e55071-1b40-4cc2-928d-d45bc986a5af}</UniqueIdentifier>
+    </Filter>
     <Filter Include="ソース ファイル\io\pci">
       <UniqueIdentifier>{e6da250b-858c-4fa8-9663-2d66e79a5ad2}</UniqueIdentifier>
     </Filter>
@@ -264,6 +270,12 @@
     </Filter>
     <Filter Include="ヘッダー ファイル\win9x\ext\scci2">
       <UniqueIdentifier>{6eecaa5d-a323-4070-a304-9b14015beb12}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\sound\mamebsdsub">
+      <UniqueIdentifier>{41e7012c-23a8-441e-974c-e411ac566f41}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\sound\mamebsdsub">
+      <UniqueIdentifier>{e20317aa-841c-485e-8d42-037e378c64cb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -1206,9 +1218,6 @@
     <ClCompile Include="commng\cmpipe.cpp">
       <Filter>ソース ファイル\win9x\commng</Filter>
     </ClCompile>
-    <ClCompile Include="..\wab\tgui9680.c">
-      <Filter>ソース ファイル\wab</Filter>
-    </ClCompile>
     <ClCompile Include="..\codecnv\sjisucs2.c">
       <Filter>ソース ファイル\codecnv</Filter>
     </ClCompile>
@@ -1220,6 +1229,15 @@
     </ClCompile>
     <ClCompile Include="..\sound\ct1741g.c">
       <Filter>ソース ファイル\sound</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\ymfm_opl.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\np2interop.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\np2compatible.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2084,6 +2102,57 @@
     <ClInclude Include="scrnmng_d3d.h">
       <Filter>ヘッダー ファイル\win9x</Filter>
     </ClInclude>
+    <ClInclude Include="..\sound\mame\driver.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mame\fm.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mame\fmopl.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mame\ymdeltat.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mame\ymf262.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_diag.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_file.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_fmgen.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_fmgeninl.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_fmgwrap.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_fmtimer.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_headers.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_misc.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_opm.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_opna.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_psg.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\fmgen\fmgen_types.h">
+      <Filter>ヘッダー ファイル\sound\fmgen</Filter>
+    </ClInclude>
     <ClInclude Include="..\cbus\boardsb16.h">
       <Filter>ヘッダー ファイル\cbus</Filter>
     </ClInclude>
@@ -2144,6 +2213,27 @@
     <ClInclude Include="..\sound\ct1741.h">
       <Filter>ヘッダー ファイル\sound</Filter>
     </ClInclude>
+    <ClInclude Include="..\sound\mame\np2interop.h">
+      <Filter>ヘッダー ファイル\sound\mame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2interop.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm_fm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm_opl.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2ymfm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2compatible.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <NASM Include="..\i286x\cpumem.x86">
@@ -2180,5 +2270,10 @@
     <ResourceCompile Include="resources\932\np2.rc">
       <Filter>リソース ファイル</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\sound\mamebsdsub\ymfm_fm.ipp">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </None>
   </ItemGroup>
 </Project>

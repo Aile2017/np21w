@@ -53,11 +53,11 @@ void ct1741_initialize(UINT rate) {
 	g_sb16.dsp_info.dma.rate2 = ct1741_playinfo.playrate = rate;
 }
 
-void ct1741_setpicirq(UINT8 irq) {
-	pic_setirq(irq);
+void ct1741_setpicirq(void) {
+	pic_setirq(g_sb16.dmairq);
 }
-void ct1741_resetpicirq(UINT8 irq) {
-	pic_resetirq(irq);
+void ct1741_resetpicirq(void) {
+	pic_resetirq(g_sb16.dmairq);
 }
 
 void ct1741_set_dma_irq(UINT8 irq) {
@@ -100,12 +100,14 @@ void ct1741_set_dma_ch(UINT8 dmach) {
 	if (dmach & 0x21) {
 		if (g_sb16.dmachnum != 0) {
 			g_sb16.dmachnum = 0;
+			g_sb16.dsp_info.dma.dmach = dmac.dmach + g_sb16.dmachnum; // DMA割り当て
 			dmac_attach(DMADEV_CT1741, g_sb16.dmachnum);
 		}
 	}
 	if (dmach & 0x42) {
 		if (g_sb16.dmachnum != 3) {
 			g_sb16.dmachnum = 3;
+			g_sb16.dsp_info.dma.dmach = dmac.dmach + g_sb16.dmachnum; // DMA割り当て
 			dmac_attach(DMADEV_CT1741, g_sb16.dmachnum);
 		}
 	}
@@ -131,15 +133,13 @@ void ct1741_dma(NEVENTITEM item)
 	UINT	irqsamplesleft;
 	UINT8	dmabuf[CT1741_DMA_BUFSIZE];
 	int i;
-	static int zerocounter = 0; // DMA転送が終了してからct1741_dmaが呼ばれた回数カウント
 	int bytesPerSample; // 1サンプルあたりのバイト数
 
 	if (item->flag & NEVENT_SETEVENT) {
 		if (g_sb16.dmachnum != 0xff) {
 			sound_sync();
-			if (g_sb16.dsp_info.mode == CT1741_DSPMODE_DMA) {
-				int isautoinit = g_sb16.dsp_info.dma.lastautoinit || g_sb16.dsp_info.dma.autoinit;
-				g_sb16.dsp_info.wbusy = 1;
+			if (g_sb16.dsp_info.mode == CT1741_DSPMODE_DMA || g_sb16.dsp_info.mode == CT1741_DSPMODE_DMA2) {
+				int isautoinit = g_sb16.dsp_info.dma.autoinit;
 
 #if defined(SUPPORT_MULTITHREAD)
 				ct1741cs_enter_criticalsection();
@@ -153,14 +153,29 @@ void ct1741_dma(NEVENTITEM item)
 				}
 				else {
 					rem = g_sb16.dsp_info.dma.bufsize - g_sb16.dsp_info.dma.bufdatas;
+					if (rem > CT1741_DMA_READINTERVAL) {
+						rem = CT1741_DMA_READINTERVAL; // 一度に読み取るデータ量を制限
+					}
+				}
+
+				// 割り込むまでのサンプル数を計算
+				irqsamples = (int)g_sb16.dsp_info.dma.total * (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
+				if (g_sb16.dsp_info.smpcounter + rem > irqsamples) {
+					rem = irqsamples - g_sb16.dsp_info.smpcounter; // 次の割り込みまでのサンプル数にする
 				}
 				//rem = rem & ~(bytesPerSample - 1);
 
+				// WORKAROUND: Win9xでは再生中はbusyにならないといけないらしい。しかしWin2kではBUSYにしておくと音の最後の部分がダブる。Win2Kの再生条件で分岐して回避
+				if (g_sb16.dsp_info.smpcounter < g_sb16.dsp_info.dma.dmach->startcount || g_sb16.dsp_info.dma.total != 65536) {
+					g_sb16.dsp_info.wbusy = (g_sb16.dsp_info.dma.lastautoinit && !g_sb16.dsp_info.dma.autoinit) ? 0 : 1; 
+				}
+
 				// DMA転送
-				r = dmac_getdatas(g_sb16.dsp_info.dma.dmach, dmabuf, rem);
-				if (r != 0) {
-					// 1byteでも転送できたらゼロカウンタクリア
-					zerocounter = 0;
+				if (g_sb16.dsp_info.dma.dmach->ready) {
+					r = dmac_getdatas(g_sb16.dsp_info.dma.dmach, dmabuf, rem);
+				}
+				else {
+					r = 0;
 				}
 
 				// 再生用バッファへコピー　なぜかバッファをはみ出して送られてくることがあるようなのでg_sb16.dsp_info.dma.dmach->startcountの範囲内しか転送しない（範囲外は捨てる）
@@ -186,14 +201,13 @@ void ct1741_dma(NEVENTITEM item)
 #endif
 
 				// autoinitの時一定のデータ量を転送したら割り込みを発生させる　
-				irqsamples = (int)g_sb16.dsp_info.dma.total * (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
 				g_sb16.dsp_info.smpcounter += r;
 				if (g_sb16.dsp_info.smpcounter >= irqsamples) {
 					if (isautoinit) {
 						// autoinitならカウンタを戻して割り込み、そうでないならDMA転送完了処理で割り込み
 						g_sb16.dsp_info.smpcounter -= irqsamples;
 						g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
-						ct1741_setpicirq(g_sb16.dmairq);
+						ct1741_setpicirq();
 						g_sb16.dsp_info.wbusy = 0;
 					}
 				}
@@ -204,9 +218,9 @@ void ct1741_dma(NEVENTITEM item)
 					irqsamplesleft = bytesPerSample; // 逆転していたら1サンプル分とする
 				}
 
-				if ((g_sb16.dsp_info.dma.dmach->leng.w) && (g_sb16.dsp_info.freq)) {
+				if (g_sb16.dsp_info.dma.dmach->ready && (g_sb16.dsp_info.dma.dmach->leng.w) && (g_sb16.dsp_info.freq) && g_sb16.dsp_info.smpcounter < irqsamples) {
 					// まだデータがあるので再度イベント設定 
-					cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount, g_sb16.dsp_info.dma.bufdatas) / 4, irqsamplesleft); // バッファの1/4を消費するクロック数 or 次の割り込みタイミング
+					cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount / 4, CT1741_DMA_READINTERVAL / 2), irqsamplesleft); // バッファの1/4を消費するクロック数 or 次の割り込みタイミング
 					if (cnt != 0) {
 						nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
 					}
@@ -217,9 +231,9 @@ void ct1741_dma(NEVENTITEM item)
 				else {
 					// DMA転送終わった
 					g_sb16.dsp_info.wbusy = 0;
-					if (zerocounter == 0 && g_sb16.dsp_info.freq) {
-						// 終わった直後。フラグを立てたり割り込みしたりする。
-						if (isautoinit || g_sb16.dsp_info.smpcounter + 1 < irqsamples) {
+					if (g_sb16.dsp_info.freq) {
+						// フラグを立てたり割り込みしたりする。
+						if (g_sb16.dsp_info.dma.dmach->ready && (isautoinit || g_sb16.dsp_info.smpcounter + 1 < irqsamples)) {
 							// autoinitまたはsingleで規定数転送してないならDMA転送を繰り返す
 							g_sb16.dsp_info.dma.laststartaddr = g_sb16.dsp_info.dma.dmach->startaddr;
 							g_sb16.dsp_info.dma.laststartcount = g_sb16.dsp_info.dma.dmach->startcount;
@@ -238,12 +252,12 @@ void ct1741_dma(NEVENTITEM item)
 								// 若干誤差があるが割り込みをDMA周期に合わせるのを優先する
 								g_sb16.dsp_info.smpcounter = 0;
 								g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
-								ct1741_setpicirq(g_sb16.dmairq);
+								ct1741_setpicirq();
 								g_sb16.dsp_info.wbusy = 0;
 							}
 
 							// 再度イベント設定
-							cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount, g_sb16.dsp_info.dma.bufdatas) / 16, irqsamplesleft); // バッファの1/16を消費するクロック数
+							cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount / 4, CT1741_DMA_READINTERVAL) / 4, irqsamplesleft); // バッファの1/16を消費するクロック数
 							if (cnt != 0) {
 								nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
 							}
@@ -253,58 +267,90 @@ void ct1741_dma(NEVENTITEM item)
 						}
 						else {
 							// singleなら割り込みを送出してDMA転送終了
+							if (g_sb16.dsp_info.dma.lastautoinit) {
+#if defined(SUPPORT_MULTITHREAD)
+								ct1741cs_enter_criticalsection();
+#endif
+								// WORKAROUND: 送りすぎ調整 Win3.1向け
+								if (g_sb16.dsp_info.dma.bufdatas > 512) {
+									g_sb16.dsp_info.dma.bufdatas -= 512;
+								}
+								else {
+									g_sb16.dsp_info.dma.bufdatas = 0;
+								}
+#if defined(SUPPORT_MULTITHREAD)
+								ct1741cs_leave_criticalsection();
+#endif
+							}
 							g_sb16.dsp_info.wbusy = 0;
 							g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
-							ct1741_setpicirq(g_sb16.dmairq);
+							ct1741_setpicirq();
 							if (g_sb16.dmachnum != 0xff) {
 								dmac.stat |= (1 << g_sb16.dmachnum);
 							}
 							g_sb16.dsp_info.smpcounter2 = 0;
 							g_sb16.dsp_info.smpcounter = 0;
 							g_sb16.dsp_info.dma.dmach->ready = 0;
-						}
-					}
-					else {
-						// 無反応なら再送。終わった直後に出した割り込みがスルーされる場合があるので無理矢理
-						if ((zerocounter % 8) == 7 || zerocounter > 32) {
-							if (g_sb16.dsp_info.dma.bufdatas < CT1741_DMA_BUFSIZE / 4) {
-								g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
-								ct1741_setpicirq(g_sb16.dmairq);
-								if (g_sb16.dmachnum != 0xff) {
-									dmac.stat |= (1 << g_sb16.dmachnum);
+							if (g_sb16.dsp_info.dma.lastautoinit) {
+								// WORKAROUND: autoinit終了でsingleになっている場合、ダミーイベントで割り込み等間隔を維持
+								cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount / 4, CT1741_DMA_READINTERVAL) / 4, irqsamples);
+								if (cnt != 0) {
+									nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
+								}
+								else {
+									nevent_setbyms(NEVENT_CT1741, 1, ct1741_dma, NEVENT_RELATIVE);
 								}
 							}
 						}
-						//// それでも無反応ならごり押し
-						//if (zerocounter > 32) {
-						//	if (isautoinit) {
-						//		g_sb16.dsp_info.dma.dmach->leng.w = g_sb16.dsp_info.dma.dmach->startcount; // 戻す
-						//		g_sb16.dsp_info.dma.dmach->adrs.d = g_sb16.dsp_info.dma.dmach->startaddr; // 戻す
-						//		g_sb16.dsp_info.smpcounter2 = 0;
-						//	}
-						//	else {
-						//		g_sb16.dsp_info.smpcounter2 = 0;
-						//		return;
-						//	}
-						//}
-						cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * CT1741_DMA_BUFSIZE / 16; // 割り込みをだすクロック数
-						if (cnt != 0) {
-							nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
-						}
-						else {
-							nevent_setbyms(NEVENT_CT1741, 1, ct1741_dma, NEVENT_RELATIVE);
-						}
 					}
-					if (r == 0) {
-						zerocounter++;
+					else {
+						// とりあえず回しておく
+						nevent_setbyms(NEVENT_CT1741, 1, ct1741_dma, NEVENT_RELATIVE);
 					}
+				}
+			}
+			else if (g_sb16.dsp_info.mode == CT1741_DSPMODE_DMA_IN) {
+				// DMA録音モード 未対応のため一定間隔で割り込みを出すだけにする
+				int isautoinit = g_sb16.dsp_info.dma.lastautoinit || g_sb16.dsp_info.dma.autoinit;
+
+				// busy解除
+				g_sb16.dsp_info.wbusy = 0;
+
+				// 1サンプルあたりのバイト数を計算
+				bytesPerSample = CT1741_BUF_ALIGN[g_sb16.dsp_info.dma.mode | g_sb16.dsp_info.dma.stereo << 3];
+
+				// 割り込みを発生させるバイト数を計算　
+				irqsamples = (int)g_sb16.dsp_info.dma.total * (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
+
+				// 割り込み
+				g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
+				ct1741_setpicirq();
+				if (g_sb16.dmachnum != 0xff) {
+					dmac.stat |= (1 << g_sb16.dmachnum);
+				}
+
+				if (isautoinit) {
+					// autoinitなら次イベント登録
+					cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * irqsamples; // 次の割り込みタイミング
+					if (cnt != 0) {
+						nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
+					}
+					else {
+						nevent_setbyms(NEVENT_CT1741, 1, ct1741_dma, NEVENT_RELATIVE); // neventを0でセットすると猫がフリーズするので回避（基本はここには来ないはず）
+					}
+				}
+				else {
+					// singleならDMA転送終了
+					g_sb16.dsp_info.smpcounter2 = 0;
+					g_sb16.dsp_info.smpcounter = 0;
+					g_sb16.dsp_info.dma.dmach->ready = 0;
 				}
 			}
 			else {
 				// DMA転送終了
 				g_sb16.dsp_info.wbusy = 0;
 				g_sb16.mixreg[0x82] |= (g_sb16.dsp_info.dma.last16mode ? 2 : 1);
-				ct1741_setpicirq(g_sb16.dmairq);
+				ct1741_setpicirq();
 				g_sb16.dsp_info.smpcounter2 = 0;
 				g_sb16.dsp_info.smpcounter = 0;
 				g_sb16.dsp_info.dma.dmach->ready = 0;
@@ -340,14 +386,13 @@ void ct1741_startdma()
 	}
 	g_sb16.dsp_info.dma.last16mode = (g_sb16.dsp_info.dma.mode == CT1741_DMAMODE_16) ? 1 : 0; // 16bit転送モードフラグ
 	g_sb16.mixreg[0x82] &= ~3;
-	ct1741_resetpicirq(g_sb16.dmairq);
-	g_sb16.dsp_info.wbusy = 0;
+	ct1741_resetpicirq();
+	g_sb16.dsp_info.wbusy = 0; // WORKAROUND: 転送開始の瞬間はbusy解除しないとWin3.1でノイズ化
 	g_sb16.dsp_info.smpcounter = 0;// g_sb16.dsp_info.dma.total / 2;
 	g_sb16.dsp_info.smpcounter2 = 0;
 	g_sb16.dsp_info.dma.bufdatas = 0;
 	g_sb16.dsp_info.dma.bufpos = 0;
 	ct1741_playinfo.bufdatasrem = 0;
-	ct1741_playinfo.playwaitcounter = CT1741_DMA_BUFSIZE * CT1741_BUF_ALIGN[g_sb16.dsp_info.dma.mode | g_sb16.dsp_info.dma.stereo << 3] * g_sb16.dsp_info.freq / 44100 / 16;
 #if defined(SUPPORT_MULTITHREAD)
 	ct1741cs_leave_criticalsection();
 #endif
@@ -364,7 +409,8 @@ REG8 DMACCALL ct1741dmafunc(REG8 func)
 		TRACEOUT(("DMAEXT_START DMA_MODE=%d", g_sb16.dsp_info.dma.mode));
 		ct1741_startdma();
 		bytesPerSample = CT1741_BUF_ALIGN[g_sb16.dsp_info.dma.mode | g_sb16.dsp_info.dma.stereo << 3];
-		cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * CT1741_DMA_BUFSIZE; // バッファを消費するクロック数だけ待つ　短すぎるとノイズが入る
+		ct1741_playinfo.playwaitcounter = CT1741_DMA_READINTERVAL;
+		cnt = pccore.realclock / g_sb16.dsp_info.freq / bytesPerSample * min(min(g_sb16.dsp_info.dma.dmach->startcount / 4, CT1741_DMA_READINTERVAL) / 4, (int)g_sb16.dsp_info.dma.total * (g_sb16.dsp_info.dma.last16mode ? 2 : 1) / 4); // バッファを消費するクロック数だけ待つ　短すぎるとノイズが入る
 		if (cnt != 0) {
 			nevent_set(NEVENT_CT1741, cnt, ct1741_dma, NEVENT_RELATIVE);
 		}
@@ -381,7 +427,7 @@ REG8 DMACCALL ct1741dmafunc(REG8 func)
 		// DMA転送中断
 		nevent_reset(NEVENT_CT1741);
 		g_sb16.mixreg[0x82] &= ~3;
-		ct1741_resetpicirq(g_sb16.dmairq);
+		ct1741_resetpicirq();
 		g_sb16.dsp_info.wbusy = 0;
 		if (g_sb16.dmachnum != 0xff) {
 			dmac.stat |= (1 << g_sb16.dmachnum);

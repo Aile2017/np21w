@@ -35,12 +35,15 @@ typedef enum {
 	CT1741_DSPMODE_DMA, // DMA再生モード
 	CT1741_DSPMODE_DMA_PAUSE, // DMA再生モード（一時停止中）
 	CT1741_DSPMODE_DMA2, // DMA再生モード（旧版互換用）
+	CT1741_DSPMODE_DMA_IN, // DMA録音モード
 } CT1741_DSPMODE;
 
 // DSP DMAバッファサイズ
 #define CT1741_DMA_BUFSIZE  1024
 // DSP DMAバッファマスク
 #define CT1741_DMA_BUFMASK  (CT1741_DMA_BUFSIZE - 1)
+// DSP DMA読み取り単位
+#define CT1741_DMA_READINTERVAL	(CT1741_DMA_BUFSIZE / 8)
 
 // DSP コマンドバッファサイズ
 #define CT1741_DSP_BUFSIZE 64
@@ -164,8 +167,8 @@ void ct1741cs_leave_criticalsection(void);
 
 void ct1741_initialize(UINT rate);
 
-void ct1741_setpicirq(UINT8 irq);
-void ct1741_resetpicirq(UINT8 irq);
+void ct1741_setpicirq(void);
+void ct1741_resetpicirq(void);
 
 void ct1741_set_dma_irq(UINT8 irq);
 UINT8 ct1741_get_dma_irq();

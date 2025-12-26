@@ -328,6 +328,12 @@
     <Filter Include="ヘッダー ファイル\i386c\ia32\instructions\fpu\softfloat3">
       <UniqueIdentifier>{b8854987-d76a-4f30-b2fb-3c260b2f114d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ソース ファイル\sound\mamebsdsub">
+      <UniqueIdentifier>{97b3d977-b5bd-4b2b-8edf-e7461b5c8e36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\sound\mamebsdsub">
+      <UniqueIdentifier>{623674b9-8366-489e-a00c-c96559116497}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\calendar.c">
@@ -1284,6 +1290,9 @@
     <ClCompile Include="..\i386c\ia32\instructions\mmx\mmx.c">
       <Filter>ソース ファイル\i386c\ia32\instructions\mmx</Filter>
     </ClCompile>
+    <ClCompile Include="..\i386c\ia32\instructions\fpu\fpemul_softfloat.c">
+      <Filter>ソース ファイル\i386c\ia32\instructions\fpu</Filter>
+    </ClCompile>
     <ClCompile Include="..\i386c\ia32\instructions\mmx\3dnow.c">
       <Filter>ソース ファイル\i386c\ia32\instructions\mmx</Filter>
     </ClCompile>
@@ -1334,9 +1343,6 @@
     </ClCompile>
     <ClCompile Include="..\i386hax\haxfunc.c">
       <Filter>ソース ファイル\i386hax</Filter>
-    </ClCompile>
-    <ClCompile Include="..\wab\tgui9680.c">
-      <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
     <ClCompile Include="..\codecnv\sjisucs2.c">
       <Filter>ソース ファイル\codecnv</Filter>
@@ -2285,6 +2291,15 @@
     </ClCompile>
     <ClCompile Include="..\i386c\ia32\instructions\fpu\fpemul_softfloat3.cpp">
       <Filter>ソース ファイル\i386c\ia32\instructions\fpu</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\ymfm_opl.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\np2interop.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sound\mamebsdsub\np2compatible.cpp">
+      <Filter>ソース ファイル\sound\mamebsdsub</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -3266,15 +3281,6 @@
     <ClInclude Include="..\i386hax\haxfunc.h">
       <Filter>ヘッダー ファイル\i386hax</Filter>
     </ClInclude>
-    <ClInclude Include="..\wab\tgui9680.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
-    <ClInclude Include="..\wab\tgui9680_extern.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
-    <ClInclude Include="..\wab\tgui9680_wrapper.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
     <ClInclude Include="np2mt.h">
       <Filter>ヘッダー ファイル\win9x</Filter>
     </ClInclude>
@@ -3329,6 +3335,24 @@
     <ClInclude Include="..\i386c\ia32\instructions\fpu\softfloat3\primitives.h">
       <Filter>ヘッダー ファイル\i386c\ia32\instructions\fpu\softfloat3</Filter>
     </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2interop.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm_fm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\ymfm_opl.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2compatible.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sound\mamebsdsub\np2ymfm.h">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <NASM Include="x86\cputype.x86">
@@ -3356,5 +3380,10 @@
     <ResourceCompile Include="resources\932\np2.rc">
       <Filter>リソース ファイル</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\sound\mamebsdsub\ymfm_fm.ipp">
+      <Filter>ヘッダー ファイル\sound\mamebsdsub</Filter>
+    </None>
   </ItemGroup>
 </Project>
