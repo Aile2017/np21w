@@ -9,6 +9,7 @@
 #include	"diskimage/fddfile.h"
 #include	"fdd/fdd_mtr.h"
 #include	"fdd/sxsi.h"
+#include	"ideio.h"
 
 
 enum {
@@ -17,7 +18,6 @@ enum {
 };
 
 extern int sxsi_unittbl[];
-
 
 // ---- FDD
 
@@ -487,6 +487,11 @@ static REG8 fdd_operate(REG8 type, REG8 rpm, BOOL ndensity) {
 			}
 			size = CPU_BX;
 			addr = ES_BASE + CPU_BP;
+			if ((addr & 0xffff) > ((addr + size - 1) & 0xffff)) {
+				ret_ah = 0x20;
+				result = FDCBIOS_WRITEERROR;
+				break;
+			}
 			while(size) {
 				if (size > secsize) {
 					accesssize = secsize;
@@ -553,6 +558,11 @@ static REG8 fdd_operate(REG8 type, REG8 rpm, BOOL ndensity) {
 			}
 			size = CPU_BX;
 			addr = ES_BASE + CPU_BP;
+			if ((addr & 0xffff) > ((addr + size - 1) & 0xffff)) {
+				ret_ah = 0x20;
+				result = FDCBIOS_READERROR;
+				break;
+			}
 			while(size) {
 				if (size > secsize) {
 					accesssize = secsize;
@@ -840,59 +850,103 @@ REG16 bootstrapload(void) {
 	UINT8	i;
 	REG16	bootseg;
 
-//	fdmode = 0;
+	//	fdmode = 0;
 	bootseg = 0;
-	switch(mem[MEMB_MSW5] & 0xf0) {		// うぐぅ…本当はALレジスタの値から
-		case 0x00:					// ノーマル
-			break;
 
-		case 0x20:					// 640KB FDD
-			for (i=0; (i<4) && (!bootseg); i++) {
-				if (fdd_diskready(i)) {
-					bootseg = boot_fd(i, 2);
+	// 猫エミュレーションBIOSはAH=0,AL=0でやってくる
+	// そうでないなら別の場所からジャンプで来ているのでAH, ALの値に基づいてブート
+	if (CPU_AX != 0) {
+		// AL -> AHで探す
+		int ii;
+		REG8 regAL = CPU_AL;
+		REG8 regAH = CPU_AH;
+		int fdsearch = 0;
+		for (ii = regAL; ii <= regAH; ii++) {
+			// FDD
+			if (0x01 <= ii && ii <= 0x04 && !fdsearch) {
+				for (i = 0; (i < 4) && (!bootseg); i++) {
+					if (fdd_diskready(i)) {
+						bootseg = boot_fd(i, 3);
+						if (bootseg) return(bootseg);
+					}
+				}
+				fdsearch = 1;
+			}
+			// HDD#1
+			if (ii == 0x0A) {
+				if (sxsi_getptr(sxsi_unittbl[0])->devtype == SXSIDEV_HDD) {
+					bootseg = boot_hd(0x80);
+					if (bootseg) return(bootseg);
 				}
 			}
-			break;
-
-		case 0x40:					// 1.2MB FDD
-			for (i=0; (i<4) && (!bootseg); i++) {
-				if (fdd_diskready(i)) {
-					bootseg = boot_fd(i, 1);
+			// HDD#2
+			if (ii == 0x0B) {
+				if (sxsi_getptr(sxsi_unittbl[0])->devtype == SXSIDEV_HDD) {
+					bootseg = boot_hd(0x81);
+					if (bootseg) return(bootseg);
 				}
 			}
-			break;
-
-		case 0x60:					// MO
-			break;
-
-		case 0xa0:					// SASI 1
-			bootseg = boot_hd(0x80);
-			break;
-
-		case 0xb0:					// SASI 2
-			bootseg = boot_hd(0x81);
-			break;
-
-		case 0xc0:					// SCSI
-			for (i=0; (i<4) && (!bootseg); i++) {
-				bootseg = boot_hd((REG8)(0xa0 + i));
+			// SCSI
+			if (ii == 0x0C) {
+				for (i = 0; (i < 4) && (!bootseg); i++) {
+					bootseg = boot_hd((REG8)(0xa0 + i));
+				}
+				if (bootseg) return(bootseg);
 			}
-			break;
-
-		default:					// ROM
-			return(0);
+		}
+		// XXX: 該当なしなら標準ブート
 	}
-	for (i=0; (i<4) && (!bootseg); i++) {
+	switch (mem[MEMB_MSW5] & 0xf0) {		// うぐぅ…本当はALレジスタの値から
+	case 0x00:					// ノーマル
+		break;
+
+	case 0x20:					// 640KB FDD
+		for (i = 0; (i < 4) && (!bootseg); i++) {
+			if (fdd_diskready(i)) {
+				bootseg = boot_fd(i, 2);
+			}
+		}
+		break;
+
+	case 0x40:					// 1.2MB FDD
+		for (i = 0; (i < 4) && (!bootseg); i++) {
+			if (fdd_diskready(i)) {
+				bootseg = boot_fd(i, 1);
+			}
+		}
+		break;
+
+	case 0x60:					// MO
+		break;
+
+	case 0xa0:					// SASI 1
+		bootseg = boot_hd(0x80);
+		break;
+
+	case 0xb0:					// SASI 2
+		bootseg = boot_hd(0x81);
+		break;
+
+	case 0xc0:					// SCSI
+		for (i = 0; (i < 4) && (!bootseg); i++) {
+			bootseg = boot_hd((REG8)(0xa0 + i));
+		}
+		break;
+
+	default:					// ROM
+		return(0);
+	}
+	for (i = 0; (i < 4) && (!bootseg); i++) {
 		if (fdd_diskready(i)) {
 			bootseg = boot_fd(i, 3);
 		}
 	}
-	if(pccore.hddif & PCHDD_IDE){
-		for (i=0; (i<4) && (!bootseg); i++) {
-			if (sxsi_getptr(sxsi_unittbl[i])->devtype == SXSIDEV_CDROM && (sxsi_getptr(sxsi_unittbl[i])->flag & SXSIFLAG_READY)){
+	if (pccore.hddif & PCHDD_IDE) {
+		for (i = 0; (i < 4) && (!bootseg); i++) {
+			if (sxsi_getptr(sxsi_unittbl[i])->devtype == SXSIDEV_CDROM && (sxsi_getptr(sxsi_unittbl[i])->flag & SXSIFLAG_READY)) {
 				bootseg = boot_cd((REG8)(0x80 + i));
 				// MEMW_DISK_EQUIPにブート対象のCD-ROMを含める
-				if(bootseg) {
+				if (bootseg) {
 					UINT16	diskequip;
 					diskequip = GETBIOSMEM16(MEMW_DISK_EQUIP);
 					diskequip |= 0x0100 << i;
@@ -900,17 +954,18 @@ REG16 bootstrapload(void) {
 				}
 			}
 		}
-		for (i=0; (i<4) && (!bootseg); i++) {
-			if(sxsi_getptr(sxsi_unittbl[i])->devtype == SXSIDEV_HDD){
+		for (i = 0; (i < 4) && (!bootseg); i++) {
+			if (sxsi_getptr(sxsi_unittbl[i])->devtype == SXSIDEV_HDD) {
 				bootseg = boot_hd((REG8)(0x80 + i));
 			}
 		}
-	}else if(pccore.hddif & PCHDD_SASI){
-		for (i=0; (i<2) && (!bootseg); i++) {
+	}
+	else if (pccore.hddif & PCHDD_SASI) {
+		for (i = 0; (i < 2) && (!bootseg); i++) {
 			bootseg = boot_hd((REG8)(0x80 + i));
 		}
 	}
-	for (i=0; (i<4) && (!bootseg); i++) {
+	for (i = 0; (i < 4) && (!bootseg); i++) {
 		bootseg = boot_hd((REG8)(0xa0 + i));
 	}
 	return(bootseg);
@@ -923,9 +978,16 @@ void bios0x1b(void) {
 
 	REG8	ret_ah;
 	REG8	flag;
+	REG8	devtype;
+#if defined(SUPPORT_IDEIO)
+	int		useidebios = ideio.bios == IDETC_BIOS;
+#else
+	int		useidebios = 0;
+#endif
 
+	devtype = (CPU_AL & 0xf0);
 #if 1			// bypass to disk bios
-	if ((CPU_AL & 0xf0) != 0x20 && (CPU_AL & 0xf0) != 0xa0 && (CPU_AL & 0xf0) != 0xc0) // SCSIは除外
+	if (devtype != 0x20 && devtype != 0xa0 && devtype != 0xc0 && (useidebios || (devtype != 0x80 && devtype != 0x00))) // エミュレーションSASI, IDE　あるいは SCSIは除外
 	{
 		REG8	seg;
 		UINT	sp;
@@ -965,7 +1027,7 @@ void bios0x1b(void) {
 #endif
 
 #if defined(SUPPORT_SCSI)
-	if ((CPU_AL & 0xf0) == 0xc0) {
+	if (devtype == 0xc0) {
 		TRACEOUT(("%.4x:%.4x AX=%.4x BX=%.4x CX=%.4x DX=%.4 ES=%.4x BP=%.4x",
 							MEMR_READ16(CPU_SS, CPU_SP+2),
 							MEMR_READ16(CPU_SS, CPU_SP),
@@ -975,7 +1037,7 @@ void bios0x1b(void) {
 	}
 #endif
 
-	switch(CPU_AL & 0xf0) {
+	switch(devtype) {
 		case 0x90:
 			ret_ah = fdd_operate(3, 0, FALSE);
 			break;

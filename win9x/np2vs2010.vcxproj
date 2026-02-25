@@ -637,6 +637,7 @@
     <ClCompile Include="..\zlib\zutil.c" />
     <ClCompile Include="commng.cpp" />
     <ClCompile Include="commng\cmbase.cpp" />
+    <ClCompile Include="commng\cmfile.cpp" />
     <ClCompile Include="commng\cmmidi.cpp" />
     <ClCompile Include="commng\cmmidiin32.cpp" />
     <ClCompile Include="commng\cmmidiout32.cpp" />
@@ -647,7 +648,12 @@
     <ClCompile Include="commng\cmpara.cpp" />
     <ClCompile Include="commng\cmpipe.cpp" />
     <ClCompile Include="commng\cmserial.cpp" />
+    <ClCompile Include="commng\cmspooler.cpp" />
     <ClCompile Include="commng\cmwacom.cpp" />
+    <ClCompile Include="commng\print\cmdparser.cpp" />
+    <ClCompile Include="commng\print\pmbase.cpp" />
+    <ClCompile Include="commng\print\pmescp.cpp" />
+    <ClCompile Include="commng\print\pmpr201.cpp" />
     <ClCompile Include="commng\vsthost\vstbuffer.cpp" />
     <ClCompile Include="commng\vsthost\vsteditwnd.cpp" />
     <ClCompile Include="commng\vsthost\vsteffect.cpp" />
@@ -967,6 +973,7 @@
     <ClInclude Include="..\zlib\zutil.h" />
     <ClInclude Include="commng.h" />
     <ClInclude Include="commng\cmbase.h" />
+    <ClInclude Include="commng\cmfile.h" />
     <ClInclude Include="commng\cmmidi.h" />
     <ClInclude Include="commng\cmmidiin32.h" />
     <ClInclude Include="commng\cmmidiout.h" />
@@ -978,7 +985,12 @@
     <ClInclude Include="commng\cmpara.h" />
     <ClInclude Include="commng\cmpipe.h" />
     <ClInclude Include="commng\cmserial.h" />
+    <ClInclude Include="commng\cmspooler.h" />
     <ClInclude Include="commng\cmwacom.h" />
+    <ClInclude Include="commng\print\cmdparser.h" />
+    <ClInclude Include="commng\print\pmbase.h" />
+    <ClInclude Include="commng\print\pmescp.h" />
+    <ClInclude Include="commng\print\pmpr201.h" />
     <ClInclude Include="commng\vsthost\vstbuffer.h" />
     <ClInclude Include="commng\vsthost\vsteditwnd.h" />
     <ClInclude Include="commng\vsthost\vsteditwndbase.h" />
