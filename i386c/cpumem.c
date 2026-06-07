@@ -40,6 +40,9 @@ static void trace_fmt_ex(const char *fmt, ...)
 #if defined(SUPPORT_CL_GD5430)
 #include	"wab/cirrus_vga_extern.h"
 #endif
+#if defined(SUPPORT_WAB_NPDISP)
+#include	"wab/npdisp.h"
+#endif
 #if defined(SUPPORT_PCI)
 #include	"bios/bios.h"
 #endif
@@ -595,6 +598,11 @@ REG8 MEMCALL memp_read8(UINT32 address) {
 			return(memvgaf_rd8(address));
 		}
 #endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+		else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+			return(npdisp.mm_screenPtr[address - npdisp.mm_vramPhysicalAddr]);
+		}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 		else {
 //			TRACEOUT(("out of mem (read8): %x", address));
 			return(0xff);
@@ -707,6 +715,11 @@ REG16 MEMCALL memp_read16(UINT32 address) {
 				return(memvgaf_rd16(address));
 			}
 	#endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+			else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+				return(LOADINTELWORD(npdisp.mm_screenPtr + (address - npdisp.mm_vramPhysicalAddr)));
+			}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 			else {
 	//			TRACEOUT(("out of mem (read16): %x", address));
 				return(0xffff);
@@ -826,6 +839,11 @@ UINT32 MEMCALL memp_read32(UINT32 address) {
 				return(memvgaf_rd32(address));
 			}
 	#endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+			else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+				return(LOADINTELDWORD(npdisp.mm_screenPtr + (address - npdisp.mm_vramPhysicalAddr)));
+			}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 			else {
 	//			TRACEOUT(("out of mem (read32): %x", address));
 				return(0xffffffff);
@@ -1123,6 +1141,11 @@ void MEMCALL memp_write8(UINT32 address, REG8 value) {
 			memvgaf_wr8(address, value);
 		}
 #endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+		else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+			npdisp.mm_screenPtr[address - npdisp.mm_vramPhysicalAddr] = value;
+		}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 		else {
 			TRACEOUT(("out of mem (write8): %x", address));
 		}
@@ -1249,6 +1272,11 @@ void MEMCALL memp_write16(UINT32 address, REG16 value) {
 				memvgaf_wr16(address, value);
 			}
 #endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+			else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+				STOREINTELWORD(npdisp.mm_screenPtr + (address - npdisp.mm_vramPhysicalAddr), value);
+			}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 			else {
 				TRACEOUT(("out of mem (write16): %x", address));
 			}
@@ -1382,6 +1410,11 @@ void MEMCALL memp_write32(UINT32 address, UINT32 value) {
 				memvgaf_wr32(address, value);
 			}
 #endif	// defined(SUPPORT_PC9821)
+#if defined(SUPPORT_WAB_NPDISP)
+			else if (npdisp.mm_vramPhysicalAddr && npdisp.mm_screenPtr && npdisp.mm_vramPhysicalAddr <= address && address < npdisp.mm_vramPhysicalAddr + npdisp.mm_screenSize) {
+				STOREINTELDWORD(npdisp.mm_screenPtr + (address - npdisp.mm_vramPhysicalAddr), value);
+			}
+#endif	// defined(SUPPORT_WAB_NPDISP)
 			else {
 				TRACEOUT(("out of mem (write32): %x", address));
 			}
@@ -1547,6 +1580,19 @@ void MEMCALL memp_reads(UINT32 address, void *dat, UINT leng) {
 		address += diff;
 	}
 
+	/* XXX: Cirrus‚ð–³Ž‹‚µ‚Ä‚¢‚é‚ªCirrus‚Ímemp_reads‚ðŒÄ‚Î‚È‚¢‚Ì‚ÅOK */
+	if ((address >= 0x01000000) && (address < CPU_EXTLIMIT)) {
+		diff = CPU_EXTLIMIT - address;
+		if (diff >= leng) {
+			CopyMemory(dat, CPU_EXTMEMBASE + address, leng);
+			return;
+		}
+		CopyMemory(dat, CPU_EXTMEMBASE + address, diff);
+		out += diff;
+		leng -= diff;
+		address += diff;
+	}
+
 	/* slow memory access */
 	while (leng-- > 0) {
 		*out++ = memp_read8(address++);
@@ -1566,6 +1612,19 @@ void MEMCALL memp_writes(UINT32 address, const void *dat, UINT leng) {
 	address = address & CPU_ADRSMASK;
 	if ((address >= USE_HIMEM) && (address < CPU_EXTLIMIT16)) {
 		diff = CPU_EXTLIMIT16 - address;
+		if (diff >= leng) {
+			CopyMemory(CPU_EXTMEMBASE + address, dat, leng);
+			return;
+		}
+		CopyMemory(CPU_EXTMEMBASE + address, dat, diff);
+		out += diff;
+		leng -= diff;
+		address += diff;
+	}
+
+	/* XXX: Cirrus‚ð–³Ž‹‚µ‚Ä‚¢‚é‚ªCirrus‚Ímemp_writes‚ðŒÄ‚Î‚È‚¢‚Ì‚ÅOK */
+	if ((address >= 0x01000000) && (address < CPU_EXTLIMIT)) {
+		diff = CPU_EXTLIMIT - address;
 		if (diff >= leng) {
 			CopyMemory(CPU_EXTMEMBASE + address, dat, leng);
 			return;

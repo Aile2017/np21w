@@ -2216,15 +2216,6 @@
     <ClInclude Include="commng\cmpipe.h">
       <Filter>ヘッダー ファイル\win9x\commng</Filter>
     </ClInclude>
-    <ClInclude Include="..\wab\tgui9680_extern.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
-    <ClInclude Include="..\wab\tgui9680.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
-    <ClInclude Include="..\wab\tgui9680_wrapper.h">
-      <Filter>ヘッダー ファイル\wab</Filter>
-    </ClInclude>
     <ClInclude Include="np2mt.h">
       <Filter>ヘッダー ファイル\win9x</Filter>
     </ClInclude>

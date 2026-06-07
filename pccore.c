@@ -37,8 +37,9 @@
 #include	"sound.h"
 #include	"fmboard.h"
 #ifdef SUPPORT_SOUND_SB16
-#include	"ct1741io.h"
+#include	"ct1741.h"
 #endif
+#include	"cs4231.h"
 #include	"beep.h"
 #include	"s98.h"
 #include	"tms3631.h"
@@ -167,6 +168,9 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #if defined(SUPPORT_CL_GD5430)
 				0, 0x5B, 0, CIRRUS_MELCOWAB_OFS_DEFAULT, 0, 
 #endif
+#if defined(SUPPORT_WAB_NPDISP)
+				0,
+#endif
 #if defined(SUPPORT_VGA_MODEX)
 				0,
 #endif
@@ -184,7 +188,7 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #if defined(SUPPORT_FAST_MEMORYCHECK)
 				1,
 #endif
-				0, 0,
+				0, 1,
 				1, 0,
 #if defined(SUPPORT_GAMEPORT)
 				0, 0,
@@ -196,7 +200,7 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #endif
 				100,
 				TEXT(""),
-				0
+				0, 1
 	};
 
 	PCCORE	pccore = {	PCBASECLOCK25, PCBASEMULTIPLE,

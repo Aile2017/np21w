@@ -706,8 +706,34 @@ static void np2sysp_getmpos(const void* arg1, long arg2)
 				// 一般向け 強制レジスタ書き換えモード
 				CPU_FLAG &= ~C_FLAG; // 失敗ならC_FLAGを消す
 			}
-			mouseif_absflag = 0; // 相対座標取得なのでabsflag即解除
+			mouseif_absflag = 0; // 失敗なのでabsflag即解除
 			setoutstr(str); // 空文字列（エラー）
+		}
+	}
+	else if (mode == 6)
+	{
+		if (mousemng_getabspospixel(&mouseX, &mouseY))
+		{
+			if (mouseX < 0) mouseX = 0;
+			if (mouseX > 65535) mouseX = 65535;
+			if (mouseY < 0) mouseY = 0;
+			if (mouseY > 65535) mouseY = 65535;
+
+			// 一般向け 強制レジスタ書き換えモード ピクセル座標モード
+			CPU_BX = mouseX; // X座標
+			CPU_CX = mouseY; // Y座標
+			CPU_FLAG |= C_FLAG; // 成功ならC_FLAGを立てる
+			OEMSPRINTF(str, OEMTEXT("OK"));
+			mouseif_absflag = 5; // 5回取得分はマウス移動量を微小化
+			setoutstr(str);
+		}
+		else
+		{
+			// 一般向け 強制レジスタ書き換えモード ピクセル座標モード
+			CPU_FLAG &= ~C_FLAG; // 失敗ならC_FLAGを消す
+			mouseif_absflag = 0; // 失敗なのでabsflag即解除
+			OEMSPRINTF(str, OEMTEXT("OFF"));
+			setoutstr(str); // 範囲外
 		}
 	}
 	else if (mode == 4 || mode == 5)
@@ -915,6 +941,12 @@ void np2sysp_bind(void) {
 	iocore_attachout(0x07ef, np2sysp_o7ef);
 	iocore_attachinp(0x07ed, np2sysp_i7ed);
 	iocore_attachinp(0x07ef, np2sysp_i7ef);
+
+	// 他、
+	// hostdrv for NT（generic/hostdrvnt.c）が0x07ec, 0x07ee
+	// Neko Project II Fast SCSI（cbus/scsiio.c）が0x07ea, 0x07eb
+	// Neko Project II Display Adapter（wab/npdisp.c）が0x07e8, 0x07e9
+	// を使う
 
 #if defined(NP2APPDEV)
 	iocore_attachout(0x00e9, np2sysp_o0e9);
