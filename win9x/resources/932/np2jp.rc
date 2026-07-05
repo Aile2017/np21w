@@ -1026,6 +1026,7 @@ END
 IDR_SYSDEBUG MENU
 BEGIN
     MENUITEM "メモリダンプ",                IDM_MEMORYDUMP
+    MENUITEM "フルメモリダンプ",            IDM_MEMORYDUMPALL
     MENUITEM "デバッグユーティリティ",      IDM_DEBUGUTY
     MENUITEM SEPARATOR
 END
@@ -1154,6 +1155,7 @@ BEGIN
             MENUITEM "Sp&ark board",                IDM_SPARKBOARD
             MENUITEM "Sound &Orchestra",            IDM_SOUNDORCHESTRA
             MENUITEM "Sound Orchestra-&V",          IDM_SOUNDORCHESTRAV
+            MENUITEM "&Multimedia Orchestra",       IDM_MULTIMEDIAORCHESTRA
             MENUITEM "Sound &Blaster 16",           IDM_SB16
             MENUITEM "PC-9801-86 + Sound Blaster 16",  IDM_PC9801_86_SB16
             MENUITEM "Mate-X PCM + Sound Blaster 16",  IDM_WSS_SB16

@@ -371,6 +371,7 @@
     <ClCompile Include="..\cbus\board14.c" />
     <ClCompile Include="..\cbus\board26k.c" />
     <ClCompile Include="..\cbus\board86.c" />
+    <ClCompile Include="..\cbus\boardmo.c" />
     <ClCompile Include="..\cbus\boardpx.c" />
     <ClCompile Include="..\cbus\boardsb16.c" />
     <ClCompile Include="..\cbus\boardso.c" />
@@ -843,9 +844,12 @@
     <ClCompile Include="..\io\upd4990.c" />
     <ClCompile Include="..\keystat.c" />
     <ClCompile Include="..\lio\gcircle.c" />
+    <ClCompile Include="..\lio\gcopy.c" />
     <ClCompile Include="..\lio\gline.c" />
+    <ClCompile Include="..\lio\gpaint.c" />
     <ClCompile Include="..\lio\gpset.c" />
     <ClCompile Include="..\lio\gput1.c" />
+    <ClCompile Include="..\lio\groll.c" />
     <ClCompile Include="..\lio\gscreen.c" />
     <ClCompile Include="..\lio\lio.c" />
     <ClCompile Include="..\mem\dmax86.c" />
@@ -908,6 +912,8 @@
     <ClCompile Include="..\sound\vermouth\midiout.c" />
     <ClCompile Include="..\sound\vermouth\midtable.c" />
     <ClCompile Include="..\sound\vermouth\midvoice.c" />
+    <ClCompile Include="..\sound\ymzadpcmc.c" />
+    <ClCompile Include="..\sound\ymzadpcmg.c" />
     <ClCompile Include="..\statsave.c" />
     <ClCompile Include="..\timing.c" />
     <ClCompile Include="..\trap\inttrap.c" />
@@ -1063,6 +1069,7 @@
     <ClInclude Include="..\cbus\board14.h" />
     <ClInclude Include="..\cbus\board26k.h" />
     <ClInclude Include="..\cbus\board86.h" />
+    <ClInclude Include="..\cbus\boardmo.h" />
     <ClInclude Include="..\cbus\boardpx.h" />
     <ClInclude Include="..\cbus\boardsb16.h" />
     <ClInclude Include="..\cbus\boardso.h" />
@@ -1270,6 +1277,7 @@
     <ClInclude Include="..\sound\vermouth\midtable.h" />
     <ClInclude Include="..\sound\vermouth\midvoice.h" />
     <ClInclude Include="..\sound\vermouth\vermouth.h" />
+    <ClInclude Include="..\sound\ymzadpcm.h" />
     <ClInclude Include="..\statsave.h" />
     <ClInclude Include="..\timing.h" />
     <ClInclude Include="..\trap\inttrap.h" />

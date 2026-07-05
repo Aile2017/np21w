@@ -617,6 +617,7 @@
 #define IDM_SOFTKBD_X2                  40015
 #define IDM_SOFTKBD_X3                  40016
 #define IDM_SOFTKBD_XEND                40019
+#define IDM_MEMORYDUMPALL               40020
 #define IDM_ALLOWRESIZE					40048
 #define IDM_SAVEWINDOWSIZE				40049
 #define IDM_SCRNMUL                     40050
@@ -802,6 +803,7 @@
 #define IDM_PC9801_86_WSS_SB16          49657
 #define IDM_WSS_SB16					49658
 #define IDM_PC9801_86_SB16              49659
+#define IDM_MULTIMEDIAORCHESTRA         49660
 #define IDM_MEM640                      40661
 #define IDM_MEM16                       40662
 #define IDM_MEM36                       40663
