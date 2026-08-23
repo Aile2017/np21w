@@ -36,6 +36,8 @@
 		BA7E83AA19063AFB00041C04 /* board14.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81CB19063AFA00041C04 /* board14.c */; };
 		BA7E83AB19063AFB00041C04 /* board26k.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81CD19063AFA00041C04 /* board26k.c */; };
 		BA7E83AC19063AFB00041C04 /* board86.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81CF19063AFA00041C04 /* board86.c */; };
+		F2B0000119063AFB00041C04 /* cbuspnp.c in Sources */ = {isa = PBXBuildFile; fileRef = F2B0000219063AFA00041C04 /* cbuspnp.c */; };
+		F2A0000119063AFB00041C04 /* boardws.c in Sources */ = {isa = PBXBuildFile; fileRef = F2A0000219063AFA00041C04 /* boardws.c */; };
 		BA7E83AD19063AFB00041C04 /* boardpx.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81D119063AFA00041C04 /* boardpx.c */; };
 		BA7E83AE19063AFB00041C04 /* boardspb.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81D319063AFA00041C04 /* boardspb.c */; };
 		BA7E83AF19063AFB00041C04 /* boardx2.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E81D519063AFA00041C04 /* boardx2.c */; };
@@ -107,6 +109,9 @@
 		BA7E83FE19063AFB00041C04 /* cmver.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E826519063AFA00041C04 /* cmver.c */; };
 		BA7E83FF19063AFB00041C04 /* dipswbmp.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E826719063AFA00041C04 /* dipswbmp.c */; };
 		BA7E840119063AFB00041C04 /* hostdrv.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E826A19063AFA00041C04 /* hostdrv.c */; };
+		F1A2000119063AFA00041C01 /* hostdrv9x.c in Sources */ = {isa = PBXBuildFile; fileRef = F1A2000119063AFA00041C11 /* hostdrv9x.c */; };
+		F1A2000119063AFA00041C02 /* hostdrvnt.c in Sources */ = {isa = PBXBuildFile; fileRef = F1A2000119063AFA00041C14 /* hostdrvnt.c */; };
+		F1A2000119063AFA00041C03 /* hostdrvwincompat.c in Sources */ = {isa = PBXBuildFile; fileRef = F1A2000119063AFA00041C17 /* hostdrvwincompat.c */; };
 		BA7E840319063AFB00041C04 /* hostdrvs.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E826D19063AFA00041C04 /* hostdrvs.c */; };
 		BA7E840419063AFB00041C04 /* keydisp.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E826F19063AFA00041C04 /* keydisp.c */; };
 		BA7E840619063AFB00041C04 /* memdbg32.c in Sources */ = {isa = PBXBuildFile; fileRef = BA7E827219063AFA00041C04 /* memdbg32.c */; };
@@ -342,6 +347,10 @@
 		BA7E81CE19063AFA00041C04 /* board26k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = board26k.h; sourceTree = "<group>"; };
 		BA7E81CF19063AFA00041C04 /* board86.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = board86.c; sourceTree = "<group>"; };
 		BA7E81D019063AFA00041C04 /* board86.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = board86.h; sourceTree = "<group>"; };
+		F2B0000219063AFA00041C04 /* cbuspnp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cbuspnp.c; sourceTree = "<group>"; };
+		F2B0000319063AFA00041C04 /* cbuspnp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cbuspnp.h; sourceTree = "<group>"; };
+		F2A0000219063AFA00041C04 /* boardws.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = boardws.c; sourceTree = "<group>"; };
+		F2A0000319063AFA00041C04 /* boardws.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = boardws.h; sourceTree = "<group>"; };
 		BA7E81D119063AFA00041C04 /* boardpx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = boardpx.c; sourceTree = "<group>"; };
 		BA7E81D219063AFA00041C04 /* boardpx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = boardpx.h; sourceTree = "<group>"; };
 		BA7E81D319063AFA00041C04 /* boardspb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = boardspb.c; sourceTree = "<group>"; };
@@ -474,6 +483,14 @@
 		BA7E826719063AFA00041C04 /* dipswbmp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dipswbmp.c; sourceTree = "<group>"; };
 		BA7E826819063AFA00041C04 /* dipswbmp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dipswbmp.h; sourceTree = "<group>"; };
 		BA7E826A19063AFA00041C04 /* hostdrv.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hostdrv.c; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C11 /* hostdrv9x.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hostdrv9x.c; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C12 /* hostdrv9x.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrv9x.h; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C13 /* hostdrv9xdef.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrv9xdef.h; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C14 /* hostdrvnt.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hostdrvnt.c; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C15 /* hostdrvnt.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrvnt.h; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C16 /* hostdrvntdef.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrvntdef.h; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C17 /* hostdrvwincompat.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hostdrvwincompat.c; sourceTree = "<group>"; };
+		F1A2000119063AFA00041C18 /* hostdrvwincompat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrvwincompat.h; sourceTree = "<group>"; };
 		BA7E826B19063AFA00041C04 /* hostdrv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrv.h; sourceTree = "<group>"; };
 		BA7E826D19063AFA00041C04 /* hostdrvs.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hostdrvs.c; sourceTree = "<group>"; };
 		BA7E826E19063AFA00041C04 /* hostdrvs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hostdrvs.h; sourceTree = "<group>"; };
@@ -951,6 +968,10 @@
 				BA7E81CE19063AFA00041C04 /* board26k.h */,
 				BA7E81CF19063AFA00041C04 /* board86.c */,
 				BA7E81D019063AFA00041C04 /* board86.h */,
+				F2B0000219063AFA00041C04 /* cbuspnp.c */,
+				F2B0000319063AFA00041C04 /* cbuspnp.h */,
+				F2A0000219063AFA00041C04 /* boardws.c */,
+				F2A0000319063AFA00041C04 /* boardws.h */,
 				BA7E81D119063AFA00041C04 /* boardpx.c */,
 				BA7E81D219063AFA00041C04 /* boardpx.h */,
 				BADADEBB1BDF804700137975 /* boardso.c */,
@@ -1140,6 +1161,14 @@
 				BA7E826719063AFA00041C04 /* dipswbmp.c */,
 				BA7E826819063AFA00041C04 /* dipswbmp.h */,
 				BA7E826A19063AFA00041C04 /* hostdrv.c */,
+				F1A2000119063AFA00041C11 /* hostdrv9x.c */,
+				F1A2000119063AFA00041C12 /* hostdrv9x.h */,
+				F1A2000119063AFA00041C13 /* hostdrv9xdef.h */,
+				F1A2000119063AFA00041C14 /* hostdrvnt.c */,
+				F1A2000119063AFA00041C15 /* hostdrvnt.h */,
+				F1A2000119063AFA00041C16 /* hostdrvntdef.h */,
+				F1A2000119063AFA00041C17 /* hostdrvwincompat.c */,
+				F1A2000119063AFA00041C18 /* hostdrvwincompat.h */,
 				BA7E826B19063AFA00041C04 /* hostdrv.h */,
 				BA7E826D19063AFA00041C04 /* hostdrvs.c */,
 				BA7E826E19063AFA00041C04 /* hostdrvs.h */,
@@ -1669,6 +1698,8 @@
 				BA7E847719063AFB00041C04 /* adpcmc.c in Sources */,
 				BA7E848619063AFB00041C04 /* opngenc.c in Sources */,
 				BA7E83AC19063AFB00041C04 /* board86.c in Sources */,
+				F2B0000119063AFB00041C04 /* cbuspnp.c in Sources */,
+				F2A0000119063AFB00041C04 /* boardws.c in Sources */,
 				BA7E849019063AFB00041C04 /* soundrom.c in Sources */,
 				BA7E845C19063AFB00041C04 /* fontmng.c in Sources */,
 				BA7E840A19063AFB00041C04 /* softkbd.c in Sources */,
@@ -1711,6 +1742,9 @@
 				BA7E83C519063AFB00041C04 /* ucs2utf8.c in Sources */,
 				BA7E847019063AFB00041C04 /* taskmng.c in Sources */,
 				BA7E840119063AFB00041C04 /* hostdrv.c in Sources */,
+				F1A2000119063AFA00041C01 /* hostdrv9x.c in Sources */,
+				F1A2000119063AFA00041C02 /* hostdrvnt.c in Sources */,
+				F1A2000119063AFA00041C03 /* hostdrvwincompat.c in Sources */,
 				BA7E83A519063AFB00041C04 /* sxsibios.c in Sources */,
 				BA7E849219063AFB00041C04 /* tms3631g.c in Sources */,
 				BA7E83F519063AFB00041C04 /* fontmake.c in Sources */,
@@ -1730,6 +1764,11 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = ./compiler.pch;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					SUPPORT_LARGE_HDD,
+					SUPPORT_VPCVHD,
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
@@ -1766,6 +1805,11 @@
 				COPY_PHASE_STRIP = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = ./compiler.pch;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					SUPPORT_LARGE_HDD,
+					SUPPORT_VPCVHD,
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,

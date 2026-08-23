@@ -169,6 +169,7 @@ typedef	signed __int64		SINT64;
 #define	SUPPORT_PC9861K
 #define	SUPPORT_SOFTKBD		0
 #define SUPPORT_S98
+#define SUPPORT_EMU_SOUNDBIOS
 #define SUPPORT_WAVEREC
 #define SUPPORT_RECVIDEO
 #define	SUPPORT_KEYDISP
@@ -189,11 +190,13 @@ typedef	signed __int64		SINT64;
 
 #define SOUND_CRITICAL
 #define	SOUNDRESERVE	20
-#define SUPPORT_VSTi
+//#define SUPPORT_VSTi
 #define SUPPORT_ASIO
 #if (_MSC_VER >= 1500)
 #define SUPPORT_WASAPI
 #endif	/* (_MSC_VER >= 1500) */
+
+#define	SUPPORT_FDDSNDDEV	/* FDD / board(relay) operation sound to a separate output device */
 
 #define	SUPPORT_TEXTCNV
 

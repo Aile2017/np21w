@@ -166,6 +166,12 @@ struct tagNP2Config
 	UINT8	sndwssid;
 	UINT8	sndwssdma;
 	UINT8	sndwssirq;
+
+	UINT16	sndwsio;
+	UINT8	sndwsdma;
+	UINT8	sndwsirq;
+	UINT8	sndwspnp;
+	UINT8	sndwspcm;
 	
 #if defined(SUPPORT_SOUND_SB16)
 	UINT8	sndsb16io;
@@ -205,6 +211,12 @@ struct tagNP2Config
 	UINT8	fddequip;
 	UINT8	MOTOR;
 	UINT8	MOTORVOL;
+#if defined(SUPPORT_FDDSNDDEV)
+	OEMCHAR	fddSndDevice[MAX_PATH];		/* FDD seek sound output device ("" = main) */
+	OEMCHAR	boardSndDevice[MAX_PATH];	/* board(relay) sound output device ("" = main) */
+	UINT16	fddSndVol;					/* FDD seek separate-output volume (0-100) */
+	UINT16	boardSndVol;				/* board(relay) separate-output volume (0-100) */
+#endif
 	UINT8	PROTECTMEM;
 	UINT8	hdrvacc;
 	UINT8	hdrvenable;
@@ -258,6 +270,9 @@ struct tagNP2Config
 #endif
 #if defined(SUPPORT_WAB_NPDISP)
 	UINT8	usenpdisp;
+#endif
+#if defined(SUPPORT_WAB_GA1280A)
+	UINT8	usega1280a;
 #endif
 #if defined(SUPPORT_VGA_MODEX)
 	UINT8	usemodex;

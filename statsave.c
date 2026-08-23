@@ -17,6 +17,7 @@
 #include "iocore.h"
 #include "gdc_sub.h"
 #include "cbuscore.h"
+#include "cbuspnp.h"
 #include "ideio.h"
 #include "sasiio.h"
 #include "scsiio.h"
@@ -33,6 +34,7 @@
 #include "maketext.h"
 #include "sound.h"
 #include "fmboard.h"
+#include "boardws.h"
 #ifdef SUPPORT_SOUND_SB16
 #include "ct1741io.h"
 #endif
@@ -46,6 +48,9 @@
 #if defined(SUPPORT_HOSTDRVNT)
 #include "hostdrvnt.h"
 #endif
+#if defined(SUPPORT_HOSTDRV9X)
+#include "hostdrv9x.h"
+#endif
 #include "calendar.h"
 #include "keystat.h"
 #if defined(SUPPORT_WAB)
@@ -56,6 +61,17 @@
 #endif
 #if defined(SUPPORT_WAB_NPDISP)
 #include "wab/npdisp_statsave.h"
+#endif
+#if defined(SUPPORT_WAB_GA1280A)
+#include "wab/ga1280a.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+int ga1280a_sfsave(STFLAGH sfh, const SFENTRY* tbl);
+int ga1280a_sfload(STFLAGH sfh, const SFENTRY* tbl);
+#ifdef __cplusplus
+}
+#endif
 #endif
 #if defined(SUPPORT_NET)
 #include "network/net.h"
@@ -141,6 +157,8 @@ enum
 	STATFLAG_SXSI,
 	STATFLAG_HDRVNT,
 	STATFLAG_NPDISP,
+	STATFLAG_GA1280A,
+	STATFLAG_HDRV9X,
 	STATFLAG_MASK				= 0x3fff,
 	
 	STATFLAG_BWD_COMPATIBLE			= 0x4000, // このフラグが立っているとき、古いバージョンのステートセーブと互換性がある（足りないデータは0で埋められるので注意する）いまのところSTATFLAG_BINのみサポート
@@ -1023,7 +1041,10 @@ static int flagload_fm(STFLAGH sfh, const SFENTRY *tbl)
 		// new statsave
 		// 新方式ステートセーブ：原則として構造体サイズを書くように変更。復元時に足りない部分は0で埋められる。メンバ順を入れ替えず追記していけば工夫により互換性維持が可能。
 		ret = statflag_read(sfh, &nSoundID, sizeof(nSoundID));
-		fmboard_reset(&np2cfg, nSoundID);
+		if (g_nSoundID != nSoundID) {
+			fmboard_reset(&np2cfg, nSoundID);
+		}
+		pccore.sound = nSoundID;
 
 		nSaveFlags = GetSoundFlags(g_nSoundID);
 		if (nSaveFlags & FLAG_MG)
@@ -1527,6 +1548,8 @@ int statsave_save(const OEMCHAR *filename) {
 const SFENTRY	*tbl;
 const SFENTRY	*tblterm;
 
+	pccore.sound = g_nSoundID;
+
 	sffh = statflag_create(filename);
 	if (sffh == NULL) {
 		return(STATFLAG_FAILURE);
@@ -1595,6 +1618,11 @@ const SFENTRY	*tblterm;
 				ret |= hostdrv_sfsave(&sffh->sfh, tbl);
 				break;
 #endif
+#if defined(SUPPORT_HOSTDRV9X)
+			case STATFLAG_HDRV9X:
+				ret |= hostdrv9x_sfsave(&sffh->sfh, tbl);
+				break;
+#endif
 #if defined(SUPPORT_HOSTDRVNT)
 			case STATFLAG_HDRVNT:
 				ret |= hostdrvNT_sfsave(&sffh->sfh, tbl);
@@ -1603,6 +1631,11 @@ const SFENTRY	*tblterm;
 #if defined(SUPPORT_WAB_NPDISP)
 			case STATFLAG_NPDISP:
 				ret |= npdisp_sfsave(&sffh->sfh, tbl);
+				break;
+#endif
+#if defined(SUPPORT_WAB_GA1280A)
+			case STATFLAG_GA1280A:
+				ret |= ga1280a_sfsave(&sffh->sfh, tbl);
 				break;
 #endif
 
@@ -1674,7 +1707,11 @@ const SFENTRY	*tblterm;
 					ret |= flagcheck_veronly(&sffh->sfh, tbl);
 					break;
 #endif
-
+#if defined(SUPPORT_HOSTDRV9X)
+				case STATFLAG_HDRV9X:
+					ret |= flagcheck_veronly(&sffh->sfh, tbl);
+					break;
+#endif
 #if defined(SUPPORT_HOSTDRVNT)
 				case STATFLAG_HDRVNT:
 					ret |= flagcheck_veronly(&sffh->sfh, tbl);
@@ -1683,6 +1720,11 @@ const SFENTRY	*tblterm;
 
 #if defined(SUPPORT_WAB_NPDISP)
 				case STATFLAG_NPDISP:
+					ret |= flagcheck_veronly(&sffh->sfh, tbl);
+					break;
+#endif
+#if defined(SUPPORT_WAB_GA1280A)
+				case STATFLAG_GA1280A:
 					ret |= flagcheck_veronly(&sffh->sfh, tbl);
 					break;
 #endif
@@ -1821,7 +1863,11 @@ const SFENTRY	*tblterm;
 					ret |= hostdrv_sfload(&sffh->sfh, tbl);
 					break;
 #endif
-
+#if defined(SUPPORT_HOSTDRV9X)
+				case STATFLAG_HDRV9X:
+					ret |= hostdrv9x_sfload(&sffh->sfh, tbl);
+					break;
+#endif
 #if defined(SUPPORT_HOSTDRVNT)
 				case STATFLAG_HDRVNT:
 					ret |= hostdrvNT_sfload(&sffh->sfh, tbl);
@@ -1831,6 +1877,11 @@ const SFENTRY	*tblterm;
 #if defined(SUPPORT_WAB_NPDISP)
 				case STATFLAG_NPDISP:
 					ret |= npdisp_sfload(&sffh->sfh, tbl);
+					break;
+#endif
+#if defined(SUPPORT_WAB_GA1280A)
+				case STATFLAG_GA1280A:
+					ret |= ga1280a_sfload(&sffh->sfh, tbl);
 					break;
 #endif
 
@@ -1933,6 +1984,9 @@ const SFENTRY	*tblterm;
 	pc98_cirrus_vga_bind();
 	pc98_cirrus_vga_load();
 #endif
+#if defined(SUPPORT_WAB_GA1280A)
+	ga1280a_bind();
+#endif
 	
 	// OPNAボリューム再設定
 #if defined(SUPPORT_FMGEN)
@@ -1941,14 +1995,14 @@ const SFENTRY	*tblterm;
 	}
 #endif
 	if(g_nSoundID == SOUNDID_WAVESTAR){
-		opngen_setvol(np2cfg.vol_fm * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
-		psggen_setvol(np2cfg.vol_ssg * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
-		rhythm_setvol(np2cfg.vol_rhythm * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
+		opngen_setvol(np2cfg.vol_fm * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
+		psggen_setvol(np2cfg.vol_ssg * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
+		rhythm_setvol(np2cfg.vol_rhythm * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
 #if defined(SUPPORT_FMGEN)
 		if(usefmgen) {
-			opna_fmgen_setallvolumeFM_linear(np2cfg.vol_fm * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
-			opna_fmgen_setallvolumePSG_linear(np2cfg.vol_ssg * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
-			opna_fmgen_setallvolumeRhythmTotal_linear(np2cfg.vol_rhythm * cs4231.devvolume[0xff] / 15 * np2cfg.vol_master / 100);
+			opna_fmgen_setallvolumeFM_linear(np2cfg.vol_fm * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
+			opna_fmgen_setallvolumePSG_linear(np2cfg.vol_ssg * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
+			opna_fmgen_setallvolumeRhythmTotal_linear(np2cfg.vol_rhythm * boardws_getfmvolume() / 15 * np2cfg.vol_master / 100);
 		}
 #endif
 	}else{
@@ -2006,7 +2060,11 @@ const SFENTRY	*tblterm;
 
 	// カーソル表示状態復元
 	mousemng_updateautohidecursor();
-	
+
+#if defined(CPUCORE_IA32)
+	tlb_flush_all(); // TLBクリア
+#endif
+
 	return(ret);
 }
 

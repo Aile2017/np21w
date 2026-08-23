@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="ソース ファイル">
@@ -355,6 +355,12 @@
       <Filter>ソース ファイル\cbus</Filter>
     </ClCompile>
     <ClCompile Include="..\cbus\board86.c">
+      <Filter>ソース ファイル\cbus</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cbus\cbuspnp.c">
+      <Filter>ソース ファイル\cbus</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cbus\boardws.c">
       <Filter>ソース ファイル\cbus</Filter>
     </ClCompile>
     <ClCompile Include="..\cbus\board118.c">
@@ -1281,6 +1287,9 @@
     <ClCompile Include="..\lio\groll.c">
       <Filter>ソース ファイル\lio</Filter>
     </ClCompile>
+    <ClCompile Include="..\wab\ga1280a.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\calendar.h">
@@ -1341,6 +1350,12 @@
       <Filter>ヘッダー ファイル\cbus</Filter>
     </ClInclude>
     <ClInclude Include="..\cbus\board86.h">
+      <Filter>ヘッダー ファイル\cbus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\cbus\cbuspnp.h">
+      <Filter>ヘッダー ファイル\cbus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\cbus\boardws.h">
       <Filter>ヘッダー ファイル\cbus</Filter>
     </ClInclude>
     <ClInclude Include="..\cbus\boardpx.h">
@@ -2290,6 +2305,12 @@
     </ClInclude>
     <ClInclude Include="..\cbus\boardmo.h">
       <Filter>ヘッダー ファイル\cbus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\ga1280a.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\ga1280adef.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
