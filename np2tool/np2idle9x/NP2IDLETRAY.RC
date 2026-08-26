@@ -2,6 +2,8 @@
 #include "RESOURCE.H"
 #include "VERSION.H"
 
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+
 IDI_NP2IDLE ICON DISCARDABLE "np2idle.ico"
 
 1 VERSIONINFO
@@ -15,16 +17,16 @@ IDI_NP2IDLE ICON DISCARDABLE "np2idle.ico"
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "041103a4"
+        BLOCK "041103A4"
         BEGIN
-            VALUE "CompanyName",      "Neko Project II\0"
-            VALUE "FileDescription",  "NP2IDLE task tray controller\0"
-            VALUE "FileVersion",      "1.0.0.0\0"
+            VALUE "CompanyName",      "Neko Project 21/W utility\0"
+            VALUE "FileDescription",  "NP2IDLE トレイ常駐制御プログラム\0"
+            VALUE "FileVersion",      "1.3.4.1\0"
             VALUE "InternalName",     "NP2ITRAY\0"
-            VALUE "LegalCopyright",   "ねこさん開発ちーむ\0"
+            VALUE "LegalCopyright",   "Provided as source code\0"
             VALUE "OriginalFilename", "NP2ITRAY.EXE\0"
             VALUE "ProductName",      "NP2IDLE\0"
-            VALUE "ProductVersion",   "1.0.0.0\0"
+            VALUE "ProductVersion",   "1.3.4.1\0"
         END
     END
     BLOCK "VarFileInfo"
