@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="ソース ファイル">
@@ -2334,6 +2334,21 @@
     <ClCompile Include="..\wab\npdisp.cpp">
       <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
+    <ClCompile Include="..\wab\npdisp_newfont.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wab\npdisp_dd.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wab\npdisp_ddbridge.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wab\npdisp_d3d.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wab\npdisp_d3d_sw.cpp">
+      <Filter>ソース ファイル\wab</Filter>
+    </ClCompile>
     <ClCompile Include="..\wab\npdisp_mem.cpp">
       <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
@@ -2375,6 +2390,9 @@
     </ClCompile>
     <ClCompile Include="..\generic\hostdrv9x.c">
       <Filter>ソース ファイル\generic</Filter>
+    </ClCompile>
+    <ClCompile Include="..\wab\npdisp_ogl.cpp">
+      <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -3461,7 +3479,22 @@
     <ClInclude Include="..\wab\npdispdef.h">
       <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>
+    <ClInclude Include="..\wab\npdisp_newfont.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
     <ClInclude Include="..\wab\npdisp.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\npdisp_dd.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\npdisp_ddbridge.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\npdisp_d3d.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\npdisp_d3d_sw.h">
       <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>
     <ClInclude Include="..\wab\npdisp_mem.h">
@@ -3496,6 +3529,9 @@
     </ClInclude>
     <ClInclude Include="..\generic\hostdrv9xdef.h">
       <Filter>ヘッダー ファイル\generic</Filter>
+    </ClInclude>
+    <ClInclude Include="..\wab\npdisp_ogl.h">
+      <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

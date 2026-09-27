@@ -22,17 +22,25 @@ static const UINT8 cd001[7] = {0x01,'C','D','0','0','1',0x01};
 #define CD_EDC_POLYNOMIAL	0xD8018001 // Reverse 0x8001801B
 
 UINT32 crcTable[256];
+static UINT8 ecc_f_lut[256];
+static UINT8 ecc_b_lut[256];
 
 void makeCRCTable( void)
 {
 	UINT32 i, j;
-    for( i=0; i<256; i++){
-        UINT32 crc = i;
-        for( j=0; j<8; j++){
-            crc = ( crc >> 1) ^ ( ( crc & 0x1) ? CD_EDC_POLYNOMIAL : 0);
-        }
-        crcTable[i] = crc;
-    }
+	for (i = 0; i < 256; i++) {
+		UINT32 crc = i;
+		UINT32 ecc = i << 1;
+		for (j = 0; j < 8; j++) {
+			crc = (crc >> 1) ^ ((crc & 0x1) ? CD_EDC_POLYNOMIAL : 0);
+		}
+		crcTable[i] = crc;
+		if (ecc & 0x100) {
+			ecc ^= 0x11d;
+		}
+		ecc_f_lut[i] = (UINT8)ecc;
+		ecc_b_lut[i ^ ecc] = (UINT8)i;
+	}
 }
 
 //	追加(kaiA)
@@ -258,26 +266,11 @@ sec_err:
 //		UINT32	end_sec;
 //		UINT32	sectors;
 //		等のメンバの設定
-static long get_extra_pregap_sectors(const _CDTRK *prev, const _CDTRK *cur) {
-
-	/*
-	 * Only CUE PREGAP creates sectors that exist in the logical disc
-	 * address space but not in the image file.  Other formats may fill
-	 * pregap_sectors too, but their pregap is already represented by
-	 * INDEX 00 / file offsets and must not be subtracted here.
-	 */
-	if (cur->pregap_offset_ex > prev->pregap_offset_ex) {
-		return((long)(cur->pregap_offset_ex - prev->pregap_offset_ex));
-	}
-	return(0);
-}
-
 long set_trkinfo(FILEH fh, _CDTRK *trk, UINT trks, FILELEN imagesize) {
 
 	UINT	i;
 	FILELEN	fsize;
 	FILELEN	real_sectors;
-	FILELEN	extra_pregap;
 	long	total;
 
 	if (trks == 1) {
@@ -319,18 +312,7 @@ long set_trkinfo(FILEH fh, _CDTRK *trk, UINT trks, FILELEN imagesize) {
 		trk[i-1].end_sec = trk[i].str_sec - 1;
 		trk[i-1].sectors = trk[i-1].end_sec - trk[i-1].str_sec + 1;
 
-		/*
-		 * CUE PREGAP may exist only in the logical disc address space.
-		 * It must affect READ TOC / lead-out LBA, but must not be
-		 * subtracted from the image file size.  CCD INDEX 00 is recorded
-		 * in the image, so it is not treated as an extra pregap here.
-		 */
-		extra_pregap = (FILELEN)get_extra_pregap_sectors(&trk[i-1], &trk[i]);
 		real_sectors = trk[i-1].sectors;
-		if (real_sectors < extra_pregap) {
-			return(-1);
-		}
-		real_sectors -= extra_pregap;
 		if (fsize < real_sectors * trk[i-1].sector_size) {
 			return(-1);
 		}
@@ -427,11 +409,128 @@ REG8 sec2352_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 UINT32 calcCRC(UINT8 *buf, int len)
 {
 	int i;
-    UINT32 crc = 0x00000000;
-    for( i=0; i<len; i++){
-        crc = (crc >> 8) ^ crcTable[(crc^buf[i]) & 0xff];
-    }
-    return crc;
+	UINT32 crc = 0x00000000;
+	for (i = 0; i < len; i++) {
+		crc = (crc >> 8) ^ crcTable[(crc ^ buf[i]) & 0xff];
+	}
+	return(crc);
+}
+
+static void cdd_storeedc(UINT8 *dst, UINT32 edc) {
+	dst[0] = (UINT8)(edc >> 0);
+	dst[1] = (UINT8)(edc >> 8);
+	dst[2] = (UINT8)(edc >> 16);
+	dst[3] = (UINT8)(edc >> 24);
+}
+
+static void cdd_ecc_compute(const UINT8 *src, UINT major_count, UINT minor_count, UINT major_mult, UINT minor_inc, UINT8 *dst) {
+	UINT size;
+	UINT major;
+
+	size = major_count * minor_count;
+	for (major = 0; major < major_count; major++) {
+		UINT index;
+		UINT minor;
+		UINT8 ecc_a;
+		UINT8 ecc_b;
+
+		index = (major >> 1) * major_mult + (major & 1);
+		ecc_a = 0;
+		ecc_b = 0;
+		for (minor = 0; minor < minor_count; minor++) {
+			UINT8 temp = src[index];
+			index += minor_inc;
+			if (index >= size) {
+				index -= size;
+			}
+			ecc_a ^= temp;
+			ecc_b ^= temp;
+			ecc_a = ecc_f_lut[ecc_a];
+		}
+		ecc_a = ecc_b_lut[ecc_f_lut[ecc_a] ^ ecc_b];
+		dst[major] = ecc_a;
+		dst[major + major_count] = ecc_a ^ ecc_b;
+	}
+}
+
+static void cdd_ecc_generate(UINT8 *sector, BOOL zero_address) {
+	UINT8 address[4];
+
+	if (zero_address) {
+		CopyMemory(address, sector + 12, sizeof(address));
+		ZeroMemory(sector + 12, sizeof(address));
+	}
+	cdd_ecc_compute(sector + 0x0c, 86, 24, 2, 86, sector + 0x81c);
+	cdd_ecc_compute(sector + 0x0c, 52, 43, 86, 88, sector + 0x8c8);
+	if (zero_address) {
+		CopyMemory(sector + 12, address, sizeof(address));
+	}
+}
+
+static UINT8 cdd_tobcd(UINT value) {
+	return((UINT8)(((value / 10) << 4) | (value % 10)));
+}
+
+static void cdd_makeheader(UINT8 *sector, FILEPOS lba, UINT8 mode) {
+	UINT32 absolute;
+	UINT32 minute;
+	UINT32 second;
+	UINT32 frame;
+
+	ZeroMemory(sector, 2352);
+	sector[0] = 0x00;
+	memset(sector + 1, 0xff, 10);
+	sector[11] = 0x00;
+	absolute = (UINT32)lba + 150;
+	minute = absolute / (60 * 75);
+	second = (absolute / 75) % 60;
+	frame = absolute % 75;
+	sector[12] = cdd_tobcd(minute);
+	sector[13] = cdd_tobcd(second);
+	sector[14] = cdd_tobcd(frame);
+	sector[15] = mode;
+}
+
+BRESULT cddfile_makerawsector(FILEPOS lba, UINT8 sector_mode, UINT16 source_sector_size, UINT8 *sector) {
+	UINT32 edc;
+
+	if ((lba < 0) || (sector == NULL)) {
+		return(FAILURE);
+	}
+	if (sector_mode == CDSECTORMODE_AUDIO) {
+		ZeroMemory(sector, 2352);
+		return(SUCCESS);
+	}
+	if (sector_mode == CDSECTORMODE_MODE1) {
+		cdd_makeheader(sector, lba, 1);
+		edc = calcCRC(sector, 0x810);
+		cdd_storeedc(sector + 0x810, edc);
+		ZeroMemory(sector + 0x814, 8);
+		cdd_ecc_generate(sector, FALSE);
+		return(SUCCESS);
+	}
+	if (sector_mode == CDSECTORMODE_MODE2) {
+		cdd_makeheader(sector, lba, 2);
+		if (source_sector_size == 2048) {
+			sector[18] = 0x08;
+			sector[22] = 0x08;
+			edc = calcCRC(sector + 0x10, 0x808);
+			cdd_storeedc(sector + 0x818, edc);
+			cdd_ecc_generate(sector, TRUE);
+		}
+		else if (source_sector_size == 2324) {
+			sector[18] = 0x28;
+			sector[22] = 0x28;
+			edc = calcCRC(sector + 0x10, 0x91c);
+			cdd_storeedc(sector + 0x92c, edc);
+		}
+		return(SUCCESS);
+	}
+	return(FAILURE);
+}
+
+static BOOL cddfile_check_mode1_edc(const UINT8 *sector) {
+	return(calcCRC((UINT8 *)sector, 0x810) == LOADINTELDWORD(sector + 0x810));
 }
 
 //	イメージファイル内全トラックセクタ長2352byte用(ECCチェック有効)
@@ -441,8 +540,6 @@ REG8 sec2352_read_with_ecc(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 	FILEH	fh;
 	FILEPOS	fpos;
 	UINT	rsize;
-	UINT8	bufedc[4];
-	UINT8	bufecc[276];
 	UINT8	bufdata[2352];
 
 	if (sxsi_prepare(sxsi) != SUCCESS) {
@@ -465,17 +562,9 @@ REG8 sec2352_read_with_ecc(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 		if (file_read(fh, bufdata, rsize) != rsize) {
 			return(0xd0);
 		}
-		memcpy(buf, bufdata+16, min(size, 2048));
-		memcpy(bufedc, bufdata+16+2048, 4);
-		memcpy(bufecc, bufdata+16+2048+4+8, 276);
-
-		// Check EDC
-		if(calcCRC(bufdata, 2064) != LOADINTELDWORD(bufedc)){
-			// EDC Error
-			// TODO: Check ECC
-			//sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_RECOVERED; // ECC recovered
-			sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_ERROR; // ECC error
-			//return(0xd0);
+		memcpy(buf, bufdata + 16, min(size, 2048));
+		if (!cddfile_check_mode1_edc(bufdata)) {
+			sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_ERROR;
 		}
 
 		rsize = min(size, 2048);
@@ -524,14 +613,101 @@ REG8 sec2448_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 
 //	イメージファイル内セクタ長混在用
 //		非RAW(2048byte)＋Audio(2352byte)等
-REG8 sec_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
+BRESULT cddfile_mapsector(SXSIDEV sxsi, FILEPOS pos, FILEPOS *fpos, UINT16 *sector_size, UINT16 *data_offset, UINT8 *sector_mode, UINT8 *adr_ctl, BOOL *synthetic) {
+	CDINFO	cdinfo;
+	UINT	i;
+	UINT32	secs;
+	UINT32	file_pregap;
+	UINT32	file_start_lba;
+	UINT32	file_sectors;
+	UINT64	file_bytes;
+	FILEPOS	base;
 
+	if ((sxsi == NULL) || (sxsi->hdl == (INTPTR)NULL) || (pos < 0) || (pos >= sxsi->totals)) {
+		return(FAILURE);
+	}
+	cdinfo = (CDINFO)sxsi->hdl;
+	if (cdinfo->trks == 0) {
+		return(FAILURE);
+	}
+
+	if (cdinfo->layout == CDINFO_LAYOUT_CUE) {
+		for (i = 0; i < cdinfo->trks; i++) {
+			if ((cdinfo->trk[i].str_sec <= (UINT32)pos) && ((UINT32)pos <= cdinfo->trk[i].end_sec)) {
+				if ((cdinfo->trk[i].sector_size == 0) || (cdinfo->trk[i].img_start_sec < cdinfo->trk[i].img_pregap_sec) ||
+					(cdinfo->trk[i].end_offset < cdinfo->trk[i].pregap_offset)) {
+					return(FAILURE);
+				}
+				file_pregap = cdinfo->trk[i].img_start_sec - cdinfo->trk[i].img_pregap_sec;
+				if (i == 0) {
+					/* Track 1 INDEX 00 is before LBA 0 and is not addressable through normal LBA reads. */
+					file_start_lba = cdinfo->trk[i].start_sector;
+					base = (FILEPOS)cdinfo->trk[i].start_offset;
+					file_bytes = cdinfo->trk[i].end_offset - cdinfo->trk[i].start_offset;
+				}
+				else {
+					if (cdinfo->trk[i].start_sector < file_pregap) {
+						return(FAILURE);
+					}
+					file_start_lba = cdinfo->trk[i].start_sector - file_pregap;
+					base = (FILEPOS)cdinfo->trk[i].pregap_offset;
+					file_bytes = cdinfo->trk[i].end_offset - cdinfo->trk[i].pregap_offset;
+				}
+				if ((file_bytes % cdinfo->trk[i].sector_size) != 0) {
+					return(FAILURE);
+				}
+				file_sectors = (UINT32)(file_bytes / cdinfo->trk[i].sector_size);
+				if (((UINT32)pos < file_start_lba) || ((UINT32)pos - file_start_lba >= file_sectors)) {
+					*synthetic = TRUE;
+					*fpos = 0;
+				}
+				else {
+					*synthetic = FALSE;
+					*fpos = (FILEPOS)((UINT64)base +
+						(UINT64)((UINT32)pos - file_start_lba) * cdinfo->trk[i].sector_size);
+				}
+				*sector_size = cdinfo->trk[i].sector_size;
+				*data_offset = cdinfo->trk[i].data_offset;
+				*sector_mode = cdinfo->trk[i].sector_mode;
+				*adr_ctl = cdinfo->trk[i].adr_ctl;
+				return(SUCCESS);
+			}
+		}
+		return(FAILURE);
+	}
+
+	base = 0;
+	secs = 0;
+	for (i = 0; i < cdinfo->trks; i++) {
+		if ((cdinfo->trk[i].str_sec <= (UINT32)pos) && ((UINT32)pos <= cdinfo->trk[i].end_sec)) {
+			base += (pos - secs) * cdinfo->trk[i].sector_size;
+			base += (FILEPOS)cdinfo->trk[0].start_offset;
+			*fpos = base;
+			*sector_size = cdinfo->trk[i].sector_size;
+			*data_offset = (cdinfo->trk[i].sector_size == 2048) ? 0 : 16;
+			*sector_mode = cdinfo->trk[i].sector_mode;
+			*adr_ctl = cdinfo->trk[i].adr_ctl;
+			*synthetic = FALSE;
+			return(SUCCESS);
+		}
+		base += (FILEPOS)cdinfo->trk[i].sectors * cdinfo->trk[i].sector_size;
+		secs += cdinfo->trk[i].sectors;
+	}
+	return(FAILURE);
+}
+
+//	----
+//	Reads 2048-byte user data using the logical-to-image sector map.
+REG8 sec_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 	CDINFO	cdinfo;
 	FILEH	fh;
 	FILEPOS	fpos;
+	UINT16	sector_size;
+	UINT16	data_offset;
+	UINT8	sector_mode;
+	UINT8	adr_ctl;
+	BOOL	synthetic;
 	UINT	rsize;
-	UINT	i;
-	UINT32	secs;
 
 	if (sxsi_prepare(sxsi) != SUCCESS) {
 		return(0x60);
@@ -542,29 +718,46 @@ REG8 sec_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 
 	cdinfo = (CDINFO)sxsi->hdl;
 	fh = cdinfo->fh;
-
 	while (size) {
-		fpos = 0;
-		secs = 0;
-		for (i = 0; i < cdinfo->trks; i++) {
-			if (cdinfo->trk[i].str_sec <= (UINT32)pos && (UINT32)pos <= cdinfo->trk[i].end_sec) {
-				fpos += (pos - secs) * cdinfo->trk[i].sector_size;
-				if (cdinfo->trk[i].sector_size != 2048) {
-					fpos += 16;
-				}
-				break;
-			}
-			fpos += cdinfo->trk[i].sectors * cdinfo->trk[i].sector_size;
-			secs += cdinfo->trk[i].sectors;
-		}
-		fpos += (FILEPOS)cdinfo->trk[0].start_offset;
-		if (file_seek(fh, fpos, FSEEK_SET) != fpos) {
+		if (cddfile_mapsector(sxsi, pos, &fpos, &sector_size, &data_offset, &sector_mode, &adr_ctl, &synthetic) != SUCCESS) {
 			return(0xd0);
 		}
 		rsize = min(size, 2048);
 		CPU_REMCLOCK -= rsize;
-		if (file_read(fh, buf, rsize) != rsize) {
-			return(0xd0);
+		if (synthetic) {
+			memset(buf, 0, rsize);
+		}
+		else {
+			if ((sector_mode == CDSECTORMODE_MODE1) && (sector_size == 2352) && (data_offset == 16)) {
+				UINT8 rawdata[2352];
+
+				if ((file_seek(fh, fpos, FSEEK_SET) != fpos) || (file_read(fh, rawdata, sizeof(rawdata)) != sizeof(rawdata))) {
+					return(0xd0);
+				}
+				memcpy(buf, rawdata + 16, rsize);
+				if (!cddfile_check_mode1_edc(rawdata)) {
+					sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_ERROR;
+				}
+			}
+			else {
+				if ((sector_mode == CDSECTORMODE_MODE2) && ((sector_size == 2352) || (sector_size == 2336))) {
+					UINT8 subhead[8];
+					FILEPOS subpos;
+
+					subpos = fpos + ((sector_size == 2352) ? 16 : 0);
+					if ((file_seek(fh, subpos, FSEEK_SET) != subpos) || (file_read(fh, subhead, sizeof(subhead)) != sizeof(subhead))) {
+						return(0xd0);
+					}
+					data_offset = (!memcmp(subhead, subhead + 4, 4)) ? ((sector_size == 2352) ? 24 : 8) : ((sector_size == 2352) ? 16 : 0);
+				}
+				fpos += data_offset;
+				if (file_seek(fh, fpos, FSEEK_SET) != fpos) {
+					return(0xd0);
+				}
+				if (file_read(fh, buf, rsize) != rsize) {
+					return(0xd0);
+				}
+			}
 		}
 		buf += rsize;
 		size -= rsize;
@@ -649,7 +842,7 @@ static const OEMCHAR str_logA[] = OEMTEXT("._CDTRK.After.log");
 //
 
 //	イメージファイルの実体を開き、各種情報構築
-BRESULT setsxsidev(SXSIDEV sxsi, const OEMCHAR *path, const _CDTRK *trk, UINT trks) {
+static BRESULT setsxsidev_layout(SXSIDEV sxsi, const OEMCHAR *path, const _CDTRK *trk, UINT trks, UINT8 layout) {
 
 	FILEH	fh;
 	long	totals;
@@ -680,6 +873,7 @@ BRESULT setsxsidev(SXSIDEV sxsi, const OEMCHAR *path, const _CDTRK *trk, UINT tr
 	}
 	ZeroMemory(cdinfo, sizeof(_CDINFO));
 	cdinfo->fh = fh;
+	cdinfo->layout = layout;
 	trks = min(trks, NELEMENTS(cdinfo->trk) - 1);
 	CopyMemory(cdinfo->trk, trk, trks * sizeof(_CDTRK));
 
@@ -835,6 +1029,14 @@ sxsiope_err2:
 
 sxsiope_err1:
 	return(FAILURE);
+}
+
+BRESULT setsxsidev(SXSIDEV sxsi, const OEMCHAR *path, const _CDTRK *trk, UINT trks) {
+	return(setsxsidev_layout(sxsi, path, trk, trks, CDINFO_LAYOUT_DEFAULT));
+}
+
+BRESULT setsxsidev_cue(SXSIDEV sxsi, const OEMCHAR *path, const _CDTRK *trk, UINT trks) {
+	return(setsxsidev_layout(sxsi, path, trk, trks, CDINFO_LAYOUT_CUE));
 }
 
 #endif
