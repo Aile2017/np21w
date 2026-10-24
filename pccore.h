@@ -58,6 +58,7 @@ enum tagSoundId
 	SOUNDID_PC_9801_86_SB16		= 0x44,		/*!< PC-9801-86 + Sound Blaster 16 */
 	SOUNDID_PC_9801_118_SB16	= 0x45,		/*!< PC-9801-118 + Sound Blaster 16 */
 	SOUNDID_PC_9801_86_118_SB16 = 0x46,		/*!< PC-9801-86 + PC-9801-118(B460) + Sound Blaster 16 */
+	SOUNDID_PC_9801_26K_SB16	= 0x47,		/*!< PC-9801-26K + Sound Blaster 16 (YM2203 Upgrade Kit) */
 	SOUNDID_MATE_X_PCM			= 0x60,		/*!< Mate-X PCM */
 	SOUNDID_PC_9801_86_WSS		= 0x64,		/*!< PC-9801-86 + Mate-X PCM(B460) */
 	SOUNDID_PC_9801_86_118		= 0x68,		/*!< PC-9801-86 + PC-9801-118(B460) */
@@ -87,6 +88,16 @@ enum {
 	NPDISP_ACCEL_LEGACY		= 0,
 	NPDISP_ACCEL_DIRECTDRAW	= 1,
 	NPDISP_ACCEL_DIRECT3D		= 2
+};
+
+enum {
+	NPDISP_D3D_QUALITY_ACCURATE = 0,
+	NPDISP_D3D_QUALITY_POINT = 1,
+	NPDISP_D3D_QUALITY_AFFINE = 2,
+	NPDISP_D3D_QUALITY_FASTEST = 3,
+	NPDISP_D3D_QUALITY_COARSE2X2 = 4,
+	NPDISP_D3D_QUALITY_MAX = NPDISP_D3D_QUALITY_COARSE2X2,
+	NPDISP_D3D_QUALITY_FAST_TNL = NPDISP_D3D_QUALITY_FASTEST
 };
 #endif
 
@@ -279,6 +290,9 @@ struct tagNP2Config
 #if defined(SUPPORT_WAB_NPDISP)
 	UINT8	usenpdisp;
 	UINT8	npdispaccel;
+	UINT8	npdisptnlenable;
+	UINT8	npdisptnlfast;		// legacy INI compatibility; use npdispd3dquality for new settings
+	UINT8	npdispd3dquality;
 #endif
 #if defined(SUPPORT_WAB_GA1280A)
 	UINT8	usega1280a;
@@ -436,6 +450,10 @@ void screenvsync(NEVENTITEM item);
 void pccore_cfgupdate(void);
 
 #if defined(SUPPORT_IA32_HAXM)
+void pccore_mem_malloc(void);
+void pccore_mem_free(void);
+#endif
+#if defined(SUPPORT_IA32_WHPX)
 void pccore_mem_malloc(void);
 void pccore_mem_free(void);
 #endif

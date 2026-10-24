@@ -23,7 +23,11 @@
 #include "startup.res"
 #if defined(SUPPORT_IA32_HAXM)
 #include "biosfd80_hax.res"
-#else
+#endif
+#if defined(SUPPORT_IA32_WHPX)
+#include "biosfd80_whpx.res"
+#endif
+#if !defined(SUPPORT_IA32_HAXM) && !defined(SUPPORT_IA32_WHPX)
 #include "biosfd80.res"
 #endif
 #if defined(SUPPORT_IDEIO)
@@ -52,6 +56,11 @@
 #if defined(SUPPORT_IA32_HAXM)
 #include	"i386hax/haxfunc.h"
 #include	"i386hax/haxcore.h"
+#define USE_CUSTOM_HOOKINST
+#endif
+#if defined(SUPPORT_IA32_WHPX)
+#include	"i386whpx/whpxfunc.h"
+#include	"i386whpx/whpxcore.h"
 #define USE_CUSTOM_HOOKINST
 #endif
 
@@ -441,6 +450,11 @@ void bios_initialize(void) {
 		bioshookinfo.hookinst = 0xF4;//;0xCC;//HOOKINST_DEFAULT; // BIOSフックに使う命令（デフォルトはNOP命令をフック）
 	}else
 #endif
+#if defined(SUPPORT_IA32_WHPX)
+	if (np2whpx.enable) {
+		bioshookinfo.hookinst = 0xF4;//;0xCC;//HOOKINST_DEFAULT; // BIOSフックに使う命令（デフォルトはNOP命令をフック）
+	}else
+#endif
 	{
 		bioshookinfo.hookinst = HOOKINST_DEFAULT; // BIOSフックに使う命令（デフォルトはNOP命令をフック）
 	}
@@ -577,6 +591,11 @@ void bios_initialize(void) {
 		}
 #if defined(SUPPORT_IA32_HAXM)
 		if (np2hax.enable && np2cfg.sbeepadj) {
+			mem[ITF_ADRS + 5553] = 255;
+		}else
+#endif
+#if defined(SUPPORT_IA32_WHPX)
+		if (np2whpx.enable && np2cfg.sbeepadj) {
 			mem[ITF_ADRS + 5553] = 255;
 		}else
 #endif
@@ -719,6 +738,19 @@ static void bios_itfcall(void) {
 // np21w ver0.86 rev46-69 BIOS I/O emulation
 #if defined(BIOS_IO_EMULATION)
 int biosioemu_active = 0;
+
+BOOL biosioemu_iotrap8(UINT16 port) {
+#if defined(CPUCORE_IA32)
+	if (!biosioemu.enable || !biosioemu.active) {
+		return FALSE;
+	}
+	return cpu_io_is_trapped_vm86(port, 1);
+#else
+	(void)port;
+	return FALSE;
+#endif
+}
+
 // LIFO（若干高速だが逆順のため注意）
 void biosioemu_push8(UINT16 port, UINT8 data) {
 	
@@ -833,9 +865,49 @@ void biosioemu_enq16_read(UINT16 port) {
 		biosioemu.count++;
 	}
 }
+void biosioemu_enq_callback(UINT16 callback, UINT32 data) {
+	int i;
+
+	if(!biosioemu.enable) return;
+	if(biosioemu.count >= BIOSIOEMU_DATA_MAX) return;
+
+	for(i=biosioemu.count-1;i>=0;i--){
+		biosioemu.data[i+1].flag = biosioemu.data[i].flag;
+		biosioemu.data[i+1].port = biosioemu.data[i].port;
+		biosioemu.data[i+1].data = biosioemu.data[i].data;
+	}
+	biosioemu.data[0].flag = BIOSIOEMU_FLAG_CALLBACK;
+	biosioemu.data[0].port = callback;
+	biosioemu.data[0].data = data;
+	biosioemu.count++;
+}
+
+static void biosioemu_expand_callback(void) {
+	while(biosioemu.count){
+		int idx = biosioemu.count - 1;
+		UINT16 callback;
+		UINT32 data;
+
+		if(!(biosioemu.data[idx].flag & BIOSIOEMU_FLAG_CALLBACK)) return;
+		callback = biosioemu.data[idx].port;
+		data = biosioemu.data[idx].data;
+		biosioemu.count--;
+
+		switch(callback){
+			case BIOSIOEMU_CALLBACK_INT18_42:
+				bios0x18_42_continue(data);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
 void biosioemu_begin(void) {
 	
 	if(!biosioemu.enable) return;
+
+	biosioemu_expand_callback();
 
 	if(biosioemu.count==0){
 		// データが無いのでI/Oポート出力をスキップ
@@ -883,6 +955,8 @@ void biosioemu_begin(void) {
 void biosioemu_proc(void) {
 	
 	if(!biosioemu.enable) return;
+
+	biosioemu_expand_callback();
 
 	if(biosioemu.count==0){
 		// レジスタ戻す
@@ -956,6 +1030,7 @@ UINT MEMCALL biosfunc(UINT32 adrs) {
 		}
 		MEMR_WRITE16(CPU_SS, CPU_EBP + 6, counter);
 		CPU_IP += 2;
+		return(1);
 	}
 #endif
 

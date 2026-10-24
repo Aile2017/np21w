@@ -112,6 +112,10 @@
 #include	"i386hax/haxfunc.h"
 #include	"i386hax/haxcore.h"
 #endif
+#if defined(SUPPORT_IA32_WHPX)
+#include	"i386whpx/whpxfunc.h"
+#include	"i386whpx/whpxcore.h"
+#endif
 #include	<process.h>
 
 extern bool scrnmng_create_pending; // グラフィックレンダラ生成保留中
@@ -250,6 +254,10 @@ static	HMODULE		s_hModResource;
 static  UINT		lateframecount; // フレーム遅れ数
 static  int			mousecapturemode = 0;
 static  int			screenChanging = 0;
+
+#if defined(SUPPORT_SCRN_DIRECT3D)
+static UINT wmD3DMenuRecalc = 0;
+#endif
 
 static void np2_SetUserPause(UINT8 pause){
 	if(np2userpause && !pause){
@@ -1708,6 +1716,11 @@ static void OnCommand(HWND hWnd, WPARAM wParam)
 			np2cfg.SOUND_SW = SOUNDID_PC_9801_86_SB16;
 			update |= SYS_UPDATECFG | SYS_UPDATESBOARD;
 			break;
+
+		case IDM_PC9801_26K_SB16:
+			np2cfg.SOUND_SW = SOUNDID_PC_9801_26K_SB16;
+			update |= SYS_UPDATECFG | SYS_UPDATESBOARD;
+			break;
 			
 		case IDM_WSS_SB16:
 			np2cfg.SOUND_SW = SOUNDID_WSS_SB16;
@@ -2343,6 +2356,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	static int lastmx = -1;
 	static int lastmy = -1;
 	static int lastbtn = -1;
+
+#if defined(SUPPORT_SCRN_DIRECT3D)
+	if (wmD3DMenuRecalc && msg == wmD3DMenuRecalc) {
+		if (hWnd == g_hWndMain && !screenChanging && scrnmng_isfullscreen() &&
+			scrnmng_current_drawtype == DRAWTYPE_DIRECT3D && np2oscfg.d3d_exclusive && GetMenu(hWnd)) {
+			RECT wr;
+			POINT origin = {0};
+			if (GetWindowRect(hWnd, &wr) && ClientToScreen(hWnd, &origin) && origin.y == wr.top) {
+				SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+			}
+		}
+		return 0;
+	}
+	if (wmD3DMenuRecalc && msg == WM_ACTIVATEAPP && wParam && hWnd == g_hWndMain && !screenChanging && scrnmng_isfullscreen() &&
+		scrnmng_current_drawtype == DRAWTYPE_DIRECT3D && np2oscfg.d3d_exclusive && GetMenu(hWnd)) {
+		PostMessage(hWnd, wmD3DMenuRecalc, 0, 0);
+	}
+#endif
 
 	switch (msg) {
 		//	イメージファイルのＤ＆Ｄに対応(Kai1)
@@ -3907,6 +3938,12 @@ static void processwait(UINT cnt) {
 			lateframecount = 0;
 		}
 #endif
+#if defined(SUPPORT_IA32_WHPX)
+		if (np2whpx.enable) {
+			np2whpxcore.hurryup = 0;
+			lateframecount = 0;
+		}
+#endif
 		if(lateframecount > np2oscfg.cpustabf) lateframecount = np2oscfg.cpustabf;
 		timing_setcount(0);
 		framereset(cnt);
@@ -4426,13 +4463,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 		return(FALSE);
 	}
 #else
-	if ((hWnd = FindWindow(szClassName, NULL)) != NULL && np2oscfg.resume) {
-		// レジュームの時は複数起動するとやばいので･･･
-		ShowWindow(hWnd, SW_RESTORE);
-		SetForegroundWindow(hWnd);
-		dosio_term();
-		return(FALSE);
-	}
+	//if ((hWnd = FindWindow(szClassName, NULL)) != NULL && np2oscfg.resume) {
+	//	// レジュームの時は複数起動するとやばいので･･･
+	//	ShowWindow(hWnd, SW_RESTORE);
+	//	SetForegroundWindow(hWnd);
+	//	dosio_term();
+	//	return(FALSE);
+	//}
 #endif
 
 	g_hInstance = hInstance = LoadExternalResource(hInstance);
@@ -4498,6 +4535,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 	
 	winx = np2oscfg.winx;
 	winy = np2oscfg.winy;
+#if defined(SUPPORT_SCRN_DIRECT3D)
+	wmD3DMenuRecalc = RegisterWindowMessage(_T("NP21W_D3D_MENU_RECALC"));
+#endif
 	hWnd = CreateWindowEx(0, szClassName, np2oscfg.titles, style,
 						winx, winy, 640, 400,
 						NULL, NULL, hInstance, NULL);
