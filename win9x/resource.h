@@ -315,6 +315,8 @@
 #define IDC_PAD1_ANALOG                 15716
 #define IDC_PAD1_POVXY                  15717
 #define IDC_USEFMGEN                    15801
+#define IDC_FMGEN_55K                   15802
+#define IDC_FMGEN_OUTPUTRATE            15803
 #define IDC_CLNDREAL                    16101
 #define IDC_CLNDVIR                     16102
 #define IDC_VIRYEAR                     16103

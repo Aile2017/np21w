@@ -326,7 +326,7 @@ static void bios_reinitbyswitch(void) {
 		}
 
 		if(np2cfg.winntfix){
-			// WinNT3.50で必要
+			// WinNT3.50で必要 OS/2でも必要との情報有
 			if(sxsi_getdevtype(1)==SXSIDEV_NC && sxsi_getdevtype(3)==SXSIDEV_NC){
 				mem[0x0457] = (sxsi_getdevtype(2)==SXSIDEV_HDD ? 0x42 : 0x07)|(sxsi_getdevtype(0)==SXSIDEV_HDD ? 0x90 : 0x38);//0xd2; // 接続なしは111でないと駄目
 				mem[0x05b0] = 0xff; // 接続状況に関係なし？

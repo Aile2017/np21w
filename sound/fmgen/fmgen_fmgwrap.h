@@ -86,6 +86,7 @@ void* OPNA_dbgGetCh(void* OPNA, int c);
 
 void	OPNA_DataSave(void* OPNA, void* opnadata);
 void	OPNA_DataLoad(void* OPNA, void* opnadata);
+uint	OPNA_DataGetRate(const void* opnadata);
 
 //	YM2610/B(OPNB) -------------------------------------------------
 void*	OPNB_Construct(void);

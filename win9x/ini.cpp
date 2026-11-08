@@ -611,6 +611,7 @@ static const PFTBL s_IniItems[] =
 	
 #if defined(SUPPORT_FMGEN)
 	PFVAL("USEFMGEN", PFTYPE_BOOL,		&np2cfg.usefmgen),
+	PFVAL("FMGEN55K", PFTYPE_BOOL,		&np2cfg.fmgen55k),
 #endif	/* SUPPORT_FMGEN */
 
 	PFVAL("calendar", PFTYPE_BOOL,		&np2cfg.calendar),

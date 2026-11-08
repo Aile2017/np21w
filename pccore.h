@@ -225,6 +225,7 @@ struct tagNP2Config
 	
 #if defined(SUPPORT_FMGEN)
 	UINT8	usefmgen;
+	UINT8	fmgen55k;
 #endif	/* SUPPORT_FMGEN */
 
 	UINT8	fddequip;

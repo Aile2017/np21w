@@ -624,6 +624,9 @@ CAPTION "fmgen"
 FONT 9, "Tahoma"
 BEGIN
     CONTROL         "Use fmgen",IDC_USEFMGEN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,8,58,10
+    GROUPBOX        "FM synthesis sampling rate",IDC_STATIC,8,24,168,58
+    CONTROL         "55.5 kHz (High quality)",IDC_FMGEN_55K,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,18,42,154,10
+    CONTROL         "Same as sound output rate (Low CPU load)",IDC_FMGEN_OUTPUTRATE,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,18,58,154,10
 END
 
 IDD_CALENDAR DIALOG 0, 0, 164, 80

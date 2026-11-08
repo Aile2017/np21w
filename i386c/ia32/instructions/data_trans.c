@@ -365,7 +365,7 @@ MOV_EwGw_irqdelay(void)
 		CPU_WORKCLOCK(2);
 		*(CPU_REG16_B20(op)) = (UINT16)src;
 		if ((op & 7) == 4) {
-			if (CPU_REMCLOCK <= 0) CPU_REMCLOCK = 1;
+			exec_1step();
 		}
 	} else {
 		CPU_WORKCLOCK(3);
@@ -383,7 +383,7 @@ MOV_GwEw_irqdelay(void)
 	PREPART_REG16_EA(op, src, out, 2, 5);
 	*out = (UINT16)src;
 	if ((op & 0x38) == 0x20) {
-		if (CPU_REMCLOCK <= 0) CPU_REMCLOCK = 1;
+		exec_1step();
 	}
 }
 
@@ -401,7 +401,7 @@ MOV_EwSw_irqdelay(void)
 			CPU_WORKCLOCK(2);
 			*(CPU_REG16_B20(op)) = (UINT16)src;
 			if ((op & 7) == 4) {
-				if (CPU_REMCLOCK <= 0) CPU_REMCLOCK = 1;
+				exec_1step();
 			}
 		} else {
 			CPU_WORKCLOCK(3);
@@ -424,7 +424,7 @@ MOV_EwIw_irqdelay(void)
 		GET_PCWORD(res);
 		*(CPU_REG16_B20(op)) = (UINT16)res;
 		if ((op & 7) == 4) {
-			if (CPU_REMCLOCK <= 0) CPU_REMCLOCK = 1;
+			exec_1step();
 		}
 	} else {
 		CPU_WORKCLOCK(7);
@@ -434,7 +434,7 @@ MOV_EwIw_irqdelay(void)
 	}
 }
 
-void MOV_SPIw_irqdelay(void) { CPU_WORKCLOCK(2); GET_PCWORD(CPU_SP); if (CPU_REMCLOCK <= 0) CPU_REMCLOCK = 1; }
+void MOV_SPIw_irqdelay(void) { CPU_WORKCLOCK(2); GET_PCWORD(CPU_SP); exec_1step(); }
 #endif
 
 /*

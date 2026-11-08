@@ -79,6 +79,7 @@ void* OPNA_dbgGetCh(void* OPNA, int c) { return ((FM::OPNA*)OPNA)->dbgGetCh(c); 
 
 void	OPNA_DataSave(void* OPNA, void* opnadata) { ((FM::OPNA*)OPNA)->DataSave((FM::OPNAData*)opnadata); }
 void	OPNA_DataLoad(void* OPNA, void* opnadata) { ((FM::OPNA*)OPNA)->DataLoad((FM::OPNAData*)opnadata); }
+uint	OPNA_DataGetRate(const void* opnadata) { return ((const FM::OPNAData*)opnadata)->opnabase.opnbase.psgrate; }
 
 //	YM2610/B(OPNB) -------------------------------------------------
 void*	OPNB_Construct(void) { return new FM::OPNB; }

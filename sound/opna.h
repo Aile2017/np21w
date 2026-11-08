@@ -64,6 +64,7 @@ struct tagOpna
 #if defined(SUPPORT_FMGEN)
 	UINT8 usefmgen;
 	void* fmgen;
+	void* fmgenRateConverter;
 #endif	/* SUPPORT_FMGEN */
 };
 

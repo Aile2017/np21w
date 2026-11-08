@@ -2459,6 +2459,7 @@ protected:
 
 private:
 	UINT8 m_enable;				//!< fmgen‚ðŽg‚¤‚©
+	UINT8 m_nativeRate;
 	CWndProc m_chkenable;		//!< USE FMGEN
 };
 
@@ -2478,12 +2479,15 @@ SndOptFMGenPage::SndOptFMGenPage()
 BOOL SndOptFMGenPage::OnInitDialog()
 {
 	m_enable = np2cfg.usefmgen;
+	m_nativeRate = np2cfg.fmgen55k;
 
 	m_chkenable.SubclassDlgItem(IDC_USEFMGEN, this);
 	if(m_enable)
 		m_chkenable.SendMessage(BM_SETCHECK , BST_CHECKED , 0);
 	else
 		m_chkenable.SendMessage(BM_SETCHECK , BST_UNCHECKED , 0);
+	::CheckRadioButton(m_hWnd, IDC_FMGEN_55K, IDC_FMGEN_OUTPUTRATE,
+		m_nativeRate ? IDC_FMGEN_55K : IDC_FMGEN_OUTPUTRATE);
 
 	return TRUE;
 }
@@ -2494,10 +2498,16 @@ BOOL SndOptFMGenPage::OnInitDialog()
 void SndOptFMGenPage::OnOK()
 {
 	UINT update = 0;
+	m_nativeRate = (IsDlgButtonChecked(IDC_FMGEN_55K) == BST_CHECKED) ? 1 : 0;
 
 	if (np2cfg.usefmgen != m_enable)
 	{
 		np2cfg.usefmgen = m_enable;
+		update |= SYS_UPDATECFG;
+	}
+	if (np2cfg.fmgen55k != m_nativeRate)
+	{
+		np2cfg.fmgen55k = m_nativeRate;
 		update |= SYS_UPDATECFG;
 	}
 	::sysmng_update(update);

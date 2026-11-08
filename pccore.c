@@ -155,7 +155,7 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #endif	/* SUPPORT_SMPU98 */
 				0, {0x17, 0x04, 0x1f}, {0x0c, 0x0c, 0x02, 0x10, 0x3f, 0x3f},
 #if defined(SUPPORT_FMGEN)
-				1,
+				1, 1,
 #endif	/* SUPPORT_FMGEN */
 				3, 0, 50,
 #if defined(SUPPORT_FDDSNDDEV)

@@ -4,6 +4,7 @@
  */
 
 #include <math.h>
+#include <vector>
 #include "compiler.h"
 #include "sound/opna.h"
 #include "pccore.h"
@@ -22,6 +23,132 @@ static void writeRegister(POPNA opna, UINT nAddress, REG8 cData);
 static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData);
 
 #if defined(SUPPORT_FMGEN)
+// Standard OPNA FM calculation clock: 3993600 / (6 * 12) Hz.
+static const UINT kFMGenNativeRate = (OPNA_CLOCK + 36) / 72;
+
+class FMGenRateConverter
+{
+public:
+	FMGenRateConverter() : m_enabled(false), m_inputRate(0), m_position(0),
+		m_step(0), m_generated(0)
+	{
+		memset(m_previous, 0, sizeof(m_previous));
+	}
+
+	bool IsEnabled() const { return m_enabled; }
+	UINT GetInputRate() const { return m_inputRate; }
+
+	void Configure(UINT inputRate, UINT outputRate, bool enabled)
+	{
+		m_inputRate = inputRate;
+		m_enabled = enabled && (inputRate != outputRate) && (outputRate != 0);
+		m_step = outputRate ? (double)inputRate / outputRate : 1.0;
+		m_position = 0;
+		m_generated = 0;
+		memset(m_previous, 0, sizeof(m_previous));
+		if (!m_enabled)
+			return;
+
+		const double pi = 3.14159265358979323846;
+		const double outputRatio = (double)outputRate / inputRate;
+		const double cutoff = 0.45 * ((outputRatio < 1.0) ? outputRatio : 1.0);
+		for (int phase = 0; phase < kPhases; phase++)
+		{
+			const double fraction = (double)phase / kPhases;
+			double values[kTaps];
+			double total = 0;
+			for (int tap = 0; tap < kTaps; tap++)
+			{
+				const double distance = (double)tap + fraction - kCenter;
+				const double sinc = (fabs(distance) < 1e-12) ? 2.0 * cutoff :
+					sin(2.0 * pi * cutoff * distance) / (pi * distance);
+				const double window = 0.54 - 0.46 * cos(2.0 * pi * tap / (kTaps - 1));
+				values[tap] = sinc * window;
+				total += values[tap];
+			}
+			int sum = 0;
+			for (int tap = 0; tap < kTaps; tap++)
+			{
+				const double scaled = values[tap] * 65536.0 / total;
+				const int coefficient = (int)(scaled + ((scaled >= 0) ? 0.5 : -0.5));
+				m_coefficients[phase][tap] = coefficient;
+				sum += coefficient;
+			}
+			m_coefficients[phase][kCenter] += 65536 - sum;
+		}
+	}
+
+	void ResetHistory()
+	{
+		m_position = 0;
+		m_generated = 0;
+		memset(m_previous, 0, sizeof(m_previous));
+	}
+
+	void Mix(void* fmgen, SINT32* output, UINT count)
+	{
+		if (!count)
+			return;
+		const UINT64 generatedBefore = m_generated;
+		const UINT64 lastIndex = (UINT64)(m_position + (count - 1) * m_step);
+		const UINT nGenerate = (lastIndex >= generatedBefore) ?
+			(UINT)(lastIndex - generatedBefore + 1) : 0;
+
+		m_samples.resize((kTaps + nGenerate) * 2);
+		memcpy(&m_samples[0], m_previous, sizeof(m_previous));
+		if (nGenerate)
+		{
+			SINT32* generated = &m_samples[kTaps * 2];
+			memset(generated, 0, nGenerate * 2 * sizeof(SINT32));
+			OPNA_Mix(fmgen, generated, nGenerate);
+			m_generated += nGenerate;
+		}
+
+		for (UINT frame = 0; frame < count; frame++)
+		{
+			const UINT64 inputIndex = (UINT64)m_position;
+			const double fraction = m_position - (double)inputIndex;
+			int phase = (int)(fraction * kPhases);
+			if (phase >= kPhases) phase = kPhases - 1;
+			const int* coefficients = m_coefficients[phase];
+			const SINT64 newest = (SINT64)kTaps + (SINT64)inputIndex - (SINT64)generatedBefore;
+			SINT64 left = 0;
+			SINT64 right = 0;
+			for (int tap = 0; tap < kTaps; tap++)
+			{
+				const SINT32* sample = &m_samples[(size_t)(newest - tap) * 2];
+				left += (SINT64)sample[0] * coefficients[tap];
+				right += (SINT64)sample[1] * coefficients[tap];
+			}
+			output[frame * 2] += (SINT32)((left >= 0 ? left + 32768 : left - 32768) / 65536);
+			output[frame * 2 + 1] += (SINT32)((right >= 0 ? right + 32768 : right - 32768) / 65536);
+			m_position += m_step;
+		}
+		memcpy(m_previous, &m_samples[nGenerate * 2], sizeof(m_previous));
+	}
+
+private:
+	enum { kTaps = 65, kCenter = kTaps / 2, kPhases = 256 };
+	bool m_enabled;
+	UINT m_inputRate;
+	double m_position;
+	double m_step;
+	UINT64 m_generated;
+	SINT32 m_previous[kTaps * 2];
+	int m_coefficients[kPhases][kTaps];
+	std::vector<SINT32> m_samples;
+};
+
+static void SOUNDCALL mixFMGen(void* context, SINT32* output, UINT count)
+{
+	POPNA opna = (POPNA)context;
+	FMGenRateConverter* converter = (FMGenRateConverter*)opna->fmgenRateConverter;
+	if (converter->IsEnabled())
+		converter->Mix(opna->fmgen, output, count);
+	else
+		OPNA_Mix(opna->fmgen, output, count);
+}
+
 static void writeFmgenRegister(POPNA opna, UINT nAddress, REG8 cData)
 {
 	const UINT8 cCaps = opna->s.cCaps;
@@ -142,6 +269,7 @@ void opnalist_clear()
 {
 	opnalistconunt = 0;
 }
+
 void opna_fmgen_setallvolumeFM_linear(int lvol)
 {
 	for(int i=0;i<opnalistconunt;i++){
@@ -176,10 +304,12 @@ void opna_construct(POPNA opna)
 {
 #if defined(SUPPORT_FMGEN)
 	if(opna->fmgen) OPNA_Destruct(opna->fmgen);
+	if(opna->fmgenRateConverter) delete (FMGenRateConverter*)opna->fmgenRateConverter;
 #endif	/* SUPPORT_FMGEN */
 	memset(opna, 0, sizeof(*opna));
 #if defined(SUPPORT_FMGEN)
 	opna->fmgen = OPNA_Construct();
+	opna->fmgenRateConverter = new FMGenRateConverter();
 	opnalist_push(opna);
 #endif	/* SUPPORT_FMGEN */
 }
@@ -191,6 +321,8 @@ void opna_construct(POPNA opna)
 void opna_destruct(POPNA opna)
 {
 #if defined(SUPPORT_FMGEN)
+	delete (FMGenRateConverter*)opna->fmgenRateConverter;
+	opna->fmgenRateConverter = NULL;
 	if(opna->fmgen) {
 		if(opna->fmgen) OPNA_Destruct(opna->fmgen);
 		opna->fmgen = NULL;
@@ -230,8 +362,11 @@ void opna_reset(POPNA opna, REG8 cCaps)
 	if(np2cfg.usefmgen) {
 		OEMCHAR path[MAX_PATH];
 		char strbuf[MAX_PATH];
+		const UINT fmgenRate = np2cfg.fmgen55k ? kFMGenNativeRate : soundcfg.rate;
+		FMGenRateConverter* converter = (FMGenRateConverter*)opna->fmgenRateConverter;
+		converter->Configure(fmgenRate, soundcfg.rate, np2cfg.fmgen55k != 0);
 
-		OPNA_Init(opna->fmgen, OPNA_CLOCK*2, soundcfg.rate, false, ""); // サンプリングレート強制変更･･･
+		OPNA_Init(opna->fmgen, OPNA_CLOCK*2, fmgenRate, false, "");
 		getbiospath(path, OEMTEXT(""), NELEMENTS(path));
 #ifdef UNICODE
 		wcstombs(strbuf, path, MAX_PATH);
@@ -479,9 +614,7 @@ void opna_bind(POPNA opna)
 #if defined(SUPPORT_FMGEN)
 	if(opna->usefmgen) {
 		if (!pExt)
-		{
-			sound_streamregist(opna->fmgen, (SOUNDCB)OPNA_Mix);
-		}
+			sound_streamregist(opna, (SOUNDCB)mixFMGen);
 		if (cCaps & OPNA_HAS_RHYTHM)
 		{
 			rhythm_bind(&opna->rhythm);
@@ -941,9 +1074,15 @@ int opna_sfload(POPNA opna, STFLAGH sfh, const SFENTRY *tbl)
 			char strbuf[MAX_PATH] = {0};
 			void* buf;
 			buf = malloc(fmgen_opnadata_size);
-			ret |= statflag_read(sfh, buf, fmgen_opnadata_size);
-			OPNA_DataLoad(opna->fmgen, buf);
+			const int readResult = statflag_read(sfh, buf, fmgen_opnadata_size);
+			ret |= readResult;
+			if (readResult == STATFLAG_SUCCESS)
+				OPNA_DataLoad(opna->fmgen, buf);
 			free(buf);
+			FMGenRateConverter* converter = (FMGenRateConverter*)opna->fmgenRateConverter;
+			const UINT fmgenRate = np2cfg.fmgen55k ? kFMGenNativeRate : soundcfg.rate;
+			OPNA_SetRate(opna->fmgen, OPNA_CLOCK * 2, fmgenRate, false);
+			converter->Configure(fmgenRate, soundcfg.rate, np2cfg.fmgen55k != 0);
 			getbiospath(path, OEMTEXT(""), NELEMENTS(path));
 #ifdef UNICODE
 			wcstombs(strbuf, path, MAX_PATH);

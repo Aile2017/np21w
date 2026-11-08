@@ -331,19 +331,16 @@ void sound_sync(void)
 {
 
 	UINT32	length;
+	UINT32	clock;
 
 	if (sndstream.buffer == NULL)
 	{
 		return;
 	}
 
-	length = CPU_CLOCK + CPU_BASECLOCK - CPU_REMCLOCK - soundcfg.lastclock;
+	clock = CPU_CLOCK + CPU_BASECLOCK - CPU_REMCLOCK;
+	length = clock - soundcfg.lastclock;
 	if (length < soundcfg.minclock)
-	{
-		return;
-	}
-	length = (length * soundcfg.hzbase) / soundcfg.clockbase;
-	if (length == 0)
 	{
 		return;
 	}
@@ -355,13 +352,25 @@ void sound_sync(void)
 			return;
 		}
 	}
-	else 
+	else
 	{
 		SNDCSEC_ENTER;
 	}
 #else
 	SNDCSEC_ENTER;
 #endif
+	length = clock - soundcfg.lastclock;
+	if (length < soundcfg.minclock)
+	{
+		SNDCSEC_LEAVE;
+		return;
+	}
+	length = (length * soundcfg.hzbase) / soundcfg.clockbase;
+	if (length == 0)
+	{
+		SNDCSEC_LEAVE;
+		return;
+	}
 #if defined(SUPPORT_WAVEREC)
 	if (sndstream.rec)
 	{
