@@ -59,6 +59,12 @@ public:
 	 */
 	virtual bool Open(LPCTSTR lpDevice = NULL, HWND hWnd = NULL) = 0;
 
+	// The output backend may require a particular mixing rate.
+	virtual UINT GetSamplingRate(UINT nRequestedRate) const
+	{
+		return nRequestedRate;
+	}
+
 	/**
 	 * ÉNÉçÅ[ÉY
 	 */

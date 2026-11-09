@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 UINT soundmng_create(UINT rate, UINT ms);
+#define soundmng_getrate(rate) (rate)
 void soundmng_destroy(void);
 #define soundmng_reset()
 void soundmng_play(void);

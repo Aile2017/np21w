@@ -52,6 +52,7 @@ private:
 	UINT16 m_21port;	//!< PC-9821 port
 	void SetClock(UINT nMultiple = 0);
 	void UpdateDeviceList();
+	void UpdateRateAvailability();
 	int GetCpuTypeIndex();
 	int SetCpuTypeIndex(UINT index);
 };
@@ -195,6 +196,7 @@ BOOL CConfigureDlg::OnInitDialog()
 				break;
 
 			case CSoundMng::kWasapi:
+			case CSoundMng::kWasapiShared:
 				pDevices = &m_wasapi;
 				break;
 
@@ -216,9 +218,10 @@ BOOL CConfigureDlg::OnInitDialog()
 		}
 	}
 	m_type.Add(TEXT("Direct Sound"), CSoundMng::kDSound3);
-	if ((nType == CSoundMng::kWasapi) || (!m_wasapi.empty()))
+	if ((nType == CSoundMng::kWasapi) || (nType == CSoundMng::kWasapiShared) || (!m_wasapi.empty()))
 	{
-		m_type.Add(TEXT("WASAPI"), CSoundMng::kWasapi);
+		m_type.Add(LoadTString(IDS_WASAPI_EXCLUSIVE).c_str(), CSoundMng::kWasapi);
+		m_type.Add(LoadTString(IDS_WASAPI_SHARED).c_str(), CSoundMng::kWasapiShared);
 	}
 	if ((nType == CSoundMng::kAsio) || (!m_asio.empty()))
 	{
@@ -241,6 +244,7 @@ BOOL CConfigureDlg::OnInitDialog()
 		nIndex = m_rate.Add(np2cfg.samplingrate);
 	}
 	m_rate.SetCurSel(nIndex);
+	UpdateRateAvailability();
 
 	SetDlgItemInt(IDC_SOUND_BUFFER, np2cfg.delayms, FALSE);
 
@@ -296,6 +300,7 @@ void CConfigureDlg::UpdateDeviceList()
 			break;
 
 		case CSoundMng::kWasapi:
+		case CSoundMng::kWasapiShared:
 			pDevices = &m_wasapi;
 			break;
 
@@ -317,6 +322,12 @@ void CConfigureDlg::UpdateDeviceList()
 		nIndex = 0;
 	}
 	m_name.SetCurSel(nIndex);
+}
+
+void CConfigureDlg::UpdateRateAvailability()
+{
+	const CSoundMng::DeviceType nType = static_cast<CSoundMng::DeviceType>(m_type.GetCurItemData(np2oscfg.cSoundDeviceType));
+	m_rate.EnableWindow(nType != CSoundMng::kWasapiShared);
 }
 
 /**
@@ -942,7 +953,7 @@ void CConfigureDlg::OnOK()
 	}
 
 	UINT nBuffer = GetDlgItemInt(IDC_SOUND_BUFFER, NULL, FALSE);
-	nBuffer = max(nBuffer, 40);
+	nBuffer = max(nBuffer, 10);
 	nBuffer = min(nBuffer, 1000);
 	if (np2cfg.delayms != static_cast<UINT16>(nBuffer))
 	{
@@ -1046,6 +1057,7 @@ BOOL CConfigureDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 
 		case IDC_SOUND_DEVICE_TYPE:
 			UpdateDeviceList();
+			UpdateRateAvailability();
 			return TRUE;
 	}
 	return FALSE;

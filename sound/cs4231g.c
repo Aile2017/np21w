@@ -12,6 +12,7 @@
 extern	CS4231CFG	cs4231cfg;
 
 extern int cs4231_bufdelaycounter;
+extern int cs4231_dma_preroll;
 
 static SINT32 cs4231_DACvolume_L = 1024;
 static SINT32 cs4231_DACvolume_R = 1024;
@@ -336,7 +337,9 @@ void SOUNDCALL cs4231_getpcm(CS4231 cs, SINT32 *pcm, UINT count) {
 #if defined(SUPPORT_MULTITHREAD)
 		cs4231cs_enter_criticalsection();
 #endif
-		(*cs4231fn[cs->reg.datafmt >> 4])(cs, pcm, count);
+		if (!cs4231_dma_preroll) {
+			(*cs4231fn[cs->reg.datafmt >> 4])(cs, pcm, count);
+		}
 
 		// PIO play enable
 		if (cs4231.reg.iface & PPIO)

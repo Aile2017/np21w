@@ -66,6 +66,12 @@ void YMF262ResetChip(void* chipptr, int samplerate)
 	chipbsd->m_data.timer_startclock[0] = chipbsd->m_data.timer_startclock[1] = 0;
 }
 
+void YMF262SetRate(void* chipptr, int samplerate)
+{
+	if (!chipptr || samplerate <= 0) return;
+	((opl3bsd*)chipptr)->m_data.playrate = samplerate;
+}
+
 int YMF262Write(void* chipptr, int a, int v)
 {
 	if (!chipptr) return 0;
@@ -222,7 +228,11 @@ int YMF262FlagLoad(void* chipptr, void* srcbuf, int size)
 
 		// 旧版互換維持用　互換ロード不可なら0を返す
 		const int ret = YMF262FlagLoad_NP2REV97(chipbsd, srcbuf, size);
-		if (ret) return ret;
+		if (ret)
+		{
+			YMF262SetRate(chipptr, soundcfg.rate);
+			return ret;
+		}
 
 		return dummybuffer.size();
 	}
@@ -237,7 +247,7 @@ int YMF262FlagLoad(void* chipptr, void* srcbuf, int size)
 	memcpy(&chipbsd->m_data, (uint8_t*)srcbuf + fmbufsize, sizeof(chipbsd->m_data));
 
 	// 再生サンプリングレートはsoundcfgに合わせる
-	chipbsd->m_data.playrate = soundcfg.rate;
+	YMF262SetRate(chipptr, soundcfg.rate);
 
 	return dummybuffer.size();
 }

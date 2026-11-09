@@ -2460,7 +2460,9 @@ protected:
 private:
 	UINT8 m_enable;				//!< fmgen‚ðŽg‚¤‚©
 	UINT8 m_nativeRate;
+	UINT8 m_taps;
 	CWndProc m_chkenable;		//!< USE FMGEN
+	void UpdateTapControls();
 };
 
 /**
@@ -2480,6 +2482,7 @@ BOOL SndOptFMGenPage::OnInitDialog()
 {
 	m_enable = np2cfg.usefmgen;
 	m_nativeRate = np2cfg.fmgen55k;
+	m_taps = ((np2cfg.fmgenTaps == 25) || (np2cfg.fmgenTaps == 41)) ? np2cfg.fmgenTaps : 65;
 
 	m_chkenable.SubclassDlgItem(IDC_USEFMGEN, this);
 	if(m_enable)
@@ -2488,6 +2491,9 @@ BOOL SndOptFMGenPage::OnInitDialog()
 		m_chkenable.SendMessage(BM_SETCHECK , BST_UNCHECKED , 0);
 	::CheckRadioButton(m_hWnd, IDC_FMGEN_55K, IDC_FMGEN_OUTPUTRATE,
 		m_nativeRate ? IDC_FMGEN_55K : IDC_FMGEN_OUTPUTRATE);
+	::CheckRadioButton(m_hWnd, IDC_FMGEN_TAP65, IDC_FMGEN_TAP25,
+		(m_taps == 25) ? IDC_FMGEN_TAP25 : ((m_taps == 41) ? IDC_FMGEN_TAP41 : IDC_FMGEN_TAP65));
+	UpdateTapControls();
 
 	return TRUE;
 }
@@ -2499,6 +2505,8 @@ void SndOptFMGenPage::OnOK()
 {
 	UINT update = 0;
 	m_nativeRate = (IsDlgButtonChecked(IDC_FMGEN_55K) == BST_CHECKED) ? 1 : 0;
+	m_taps = (IsDlgButtonChecked(IDC_FMGEN_TAP25) == BST_CHECKED) ? 25 :
+		((IsDlgButtonChecked(IDC_FMGEN_TAP41) == BST_CHECKED) ? 41 : 65);
 
 	if (np2cfg.usefmgen != m_enable)
 	{
@@ -2510,7 +2518,20 @@ void SndOptFMGenPage::OnOK()
 		np2cfg.fmgen55k = m_nativeRate;
 		update |= SYS_UPDATECFG;
 	}
+	if (np2cfg.fmgenTaps != m_taps)
+	{
+		np2cfg.fmgenTaps = m_taps;
+		update |= SYS_UPDATECFG;
+	}
 	::sysmng_update(update);
+}
+
+void SndOptFMGenPage::UpdateTapControls()
+{
+	const BOOL enabled = (m_enable && m_nativeRate) ? TRUE : FALSE;
+	GetDlgItem(IDC_FMGEN_TAP65).EnableWindow(enabled);
+	GetDlgItem(IDC_FMGEN_TAP41).EnableWindow(enabled);
+	GetDlgItem(IDC_FMGEN_TAP25).EnableWindow(enabled);
 }
 
 /**
@@ -2525,6 +2546,12 @@ BOOL SndOptFMGenPage::OnCommand(WPARAM wParam, LPARAM lParam)
 	{
 		case IDC_USEFMGEN:
 			m_enable = (m_chkenable.SendMessage(BM_GETCHECK , 0 , 0) ? 1 : 0);
+			UpdateTapControls();
+			return TRUE;
+		case IDC_FMGEN_55K:
+		case IDC_FMGEN_OUTPUTRATE:
+			m_nativeRate = (IsDlgButtonChecked(IDC_FMGEN_55K) == BST_CHECKED) ? 1 : 0;
+			UpdateTapControls();
 			return TRUE;
 	}
 	return FALSE;

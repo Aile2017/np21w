@@ -253,7 +253,7 @@ UINT CSoundDeviceDSound3::CreateStream(UINT nSamplingRate, UINT nChannels, UINT 
 	SetMasterVolume(m_mastervolume);
 
 	ResetStream();
-	CThreadBase::Start();
+	CThreadBase::Start(THREAD_PRIORITY_ABOVE_NORMAL);
 	return nBufferSize;
 }
 

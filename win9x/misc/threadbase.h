@@ -14,7 +14,7 @@ public:
 	CThreadBase();
 	virtual ~CThreadBase();
 
-	bool Start();
+	bool Start(int nPriority = THREAD_PRIORITY_NORMAL);
 	void Stop();
 	bool Restart();
 	void SetStackSize(unsigned int nStackSize);

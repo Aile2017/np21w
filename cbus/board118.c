@@ -907,8 +907,8 @@ void board118_bind(void)
 		iocore_attachout(cs4231.port[9]+3, sb16_o23d2);
 
 		if (!g_mame_opl3[G_OPL3_INDEX]) {
-			g_mame_opl3[G_OPL3_INDEX] = YMF262Init(14400000, np2cfg.samplingrate);
-			samplerate = np2cfg.samplingrate;
+			g_mame_opl3[G_OPL3_INDEX] = YMF262Init(14400000, soundcfg.rate);
+			samplerate = soundcfg.rate;
 		}
 		if (g_opl3[G_OPL3_INDEX].userdata) {
 			// 外部音源を使用する場合 ダミー登録

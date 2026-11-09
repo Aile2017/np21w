@@ -141,6 +141,10 @@ bool CSoundMng::Open(DeviceType nType, LPCTSTR lpName, HWND hWnd)
 		case kWasapi:
 			pSoundDevice = new CSoundDeviceWasapi;
 			break;
+
+		case kWasapiShared:
+			pSoundDevice = new CSoundDeviceWasapi(true);
+			break;
 #endif	// defined(SUPPORT_WASAPI)
 
 #if defined(SUPPORT_ASIO)
@@ -261,16 +265,16 @@ UINT CSoundMng::CreateStream(UINT nSamplingRate, UINT ms)
 		return 0;
 	}
 
-	if (ms < 40)
+	if (ms < 10)
 	{
-		ms = 40;
+		ms = 10;
 	}
 	else if (ms > 1000)
 	{
 		ms = 1000;
 	}
 	UINT nBuffer = (nSamplingRate * ms) / 2000;
-	nBuffer = (nBuffer + 1) & (~1);
+	nBuffer = (nBuffer + 3) & (~3);
 
 	nBuffer = m_pSoundDevice->CreateStream(nSamplingRate, 2, nBuffer);
 	if (nBuffer == 0)
@@ -291,6 +295,26 @@ UINT CSoundMng::CreateStream(UINT nSamplingRate, UINT ms)
 
 	LeaveAllCriticalSection();
 	return nBuffer;
+}
+
+UINT CSoundMng::GetSamplingRate(UINT nRequestedRate) const
+{
+	return (m_pSoundDevice != NULL) ? m_pSoundDevice->GetSamplingRate(nRequestedRate) : nRequestedRate;
+}
+
+bool CSoundMng::ReopenWasapi()
+{
+	bool result = false;
+	EnterAllCriticalSection();
+#if defined(SUPPORT_WASAPI)
+	if (m_pSoundDevice != NULL &&
+		(np2oscfg.cSoundDeviceType == kWasapi || np2oscfg.cSoundDeviceType == kWasapiShared))
+	{
+		result = static_cast<CSoundDeviceWasapi*>(m_pSoundDevice)->Reopen();
+	}
+#endif
+	LeaveAllCriticalSection();
+	return result;
 }
 
 /**
@@ -552,6 +576,16 @@ UINT soundmng_create(UINT rate, UINT ms)
 	UINT result;
 	result = CSoundMng::GetInstance()->CreateStream(rate, ms);
 	return result;
+}
+
+UINT soundmng_getrate(UINT rate)
+{
+	return CSoundMng::GetInstance()->GetSamplingRate(rate);
+}
+
+BOOL soundmng_reopen(void)
+{
+	return CSoundMng::GetInstance()->ReopenWasapi() ? TRUE : FALSE;
 }
 
 /**

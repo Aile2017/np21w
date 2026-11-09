@@ -21,6 +21,8 @@ extern "C"
 #endif
 	
 UINT soundmng_create(UINT rate, UINT ms);
+UINT soundmng_getrate(UINT rate);
+BOOL soundmng_reopen(void);
 void soundmng_destroy(void);
 void soundmng_reset(void);
 void soundmng_play(void);
@@ -63,7 +65,8 @@ public:
 		kDefault			= 0,	/*!< Default */
 		kDSound3,					/*!< Direct Sound3 */
 		kWasapi,					/*!< WASAPI */
-		kAsio						/*!< ASIO */
+		kAsio,						/*!< ASIO */
+		kWasapiShared				/*!< WASAPI shared mode */
 	};
 
 	static CSoundMng* GetInstance();
@@ -76,6 +79,8 @@ public:
 	void Enable(SoundProc nProc);
 	void Disable(SoundProc nProc);
 	UINT CreateStream(UINT nSamplingRate, UINT ms);
+	UINT GetSamplingRate(UINT nRequestedRate) const;
+	bool ReopenWasapi();
 	void DestroyStream();
 	void ResetStream();
 	void PlayStream();

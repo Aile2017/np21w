@@ -29,6 +29,14 @@
 #include	"keydisp.h"
 #include	"keystat.h"
 
+#if defined(_WIN32) && defined(USE_MAME) && defined(USE_MAME_BSD)
+#if _MSC_VER < 1900
+#include "sound/mamebsdsub/np2interop.h"
+#else
+#include "sound/mamebsd/np2interop.h"
+#endif
+#endif
+
 
 	SOUNDID g_nSoundID;
 	OPL3 g_opl3[OPL3_MAX]; // index: 0=PC-9891-118, 1=Sound Blaster 16, 2=Sound Orchestra
@@ -50,6 +58,25 @@ static void	(*extfn)(REG8 enable);
 // ----
 
 static	REG8	s_rapids = 0;
+
+#if defined(_WIN32)
+void fmboard_soundratechange(UINT rate)
+{
+#if defined(USE_MAME) && defined(USE_MAME_BSD)
+	UINT i;
+#endif
+	if (!rate) return;
+#if defined(SUPPORT_FMGEN)
+	opna_fmgen_setrate(rate);
+#endif
+#if defined(USE_MAME) && defined(USE_MAME_BSD)
+	for (i = 0; i < NELEMENTS(g_mame_opl3); i++)
+	{
+		if (g_mame_opl3[i]) YMF262SetRate(g_mame_opl3[i], rate);
+	}
+#endif
+}
+#endif
 
 REG8 fmboard_getjoy(POPNA opna)
 {

@@ -14,6 +14,7 @@ extern "C" {
 
 void* YMF262Init(INT clock, INT rate);
 void YMF262ResetChip(void* chipptr, int samplerate);
+void YMF262SetRate(void* chipptr, int samplerate);
 void YMF262Shutdown(void* chipptr);
 INT YMF262Write(void* chipptr, INT a, INT v);
 UINT8 YMF262Read(void* chipptr, INT a);

@@ -155,7 +155,7 @@ const OEMCHAR np2version[] = OEMTEXT(NP2VER_CORE);
 #endif	/* SUPPORT_SMPU98 */
 				0, {0x17, 0x04, 0x1f}, {0x0c, 0x0c, 0x02, 0x10, 0x3f, 0x3f},
 #if defined(SUPPORT_FMGEN)
-				1, 1,
+				1, 1, 41,
 #endif	/* SUPPORT_FMGEN */
 				3, 0, 50,
 #if defined(SUPPORT_FDDSNDDEV)
@@ -375,7 +375,7 @@ static void sound_init(void)
 {
 	UINT rate;
 
-	rate = np2cfg.samplingrate;
+	rate = soundmng_getrate(np2cfg.samplingrate);
 	if (sound_create(rate, np2cfg.delayms) != SUCCESS)
 	{
 		rate = 0;
@@ -409,12 +409,33 @@ static void sound_init(void)
 static void sound_term(void) {
 
 	soundmng_stop();
+	// Stop the render worker before releasing audio generator resources.
+	sound_destroy();
 	amd98_deinitialize();
 	rhythm_deinitialize();
 	beep_deinitialize();
 	fddmtrsnd_deinitialize();
-	sound_destroy();
 }
+
+#if defined(_WIN32)
+void pccore_soundreopen(void)
+{
+	const UINT oldRate = soundcfg.rate;
+	// The caller has suspended guest execution; leave guest device state intact.
+	sound_term();
+	if (soundmng_reopen())
+	{
+		sound_init();
+		if (soundcfg.rate != oldRate)
+		{
+			fmboard_soundratechange(soundcfg.rate);
+		}
+		fddmtrsnd_bind();
+		fmboard_bind();
+		soundmng_play();
+	}
+}
+#endif
 #endif
 
 #if defined(SUPPORT_IA32_HAXM)

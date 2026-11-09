@@ -3,6 +3,8 @@
 
 G_BEGIN_DECLS
 
+#define soundmng_getrate(rate) (rate)
+
 enum {
 	SOUND_PCMSEEK,
 	SOUND_PCMSEEK1,

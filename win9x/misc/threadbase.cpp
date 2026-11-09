@@ -32,7 +32,7 @@ CThreadBase::~CThreadBase()
  *
  * @retval true ê¨å˜
  */
-bool CThreadBase::Start()
+bool CThreadBase::Start(int nPriority)
 {
 	if (m_hThread != INVALID_HANDLE_VALUE)
 	{
@@ -52,6 +52,10 @@ bool CThreadBase::Start()
 
 	m_hThread = hThread;
 	m_dwThreadId = dwThreadId;
+	if (nPriority != THREAD_PRIORITY_NORMAL)
+	{
+		::SetThreadPriority(hThread, nPriority);
+	}
 	return true;
 }
 

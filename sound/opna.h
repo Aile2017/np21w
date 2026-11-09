@@ -96,6 +96,7 @@ int opna_sfsave(PCOPNA opna, STFLAGH sfh, const SFENTRY *tbl);
 int opna_sfload(POPNA opna, STFLAGH sfh, const SFENTRY *tbl);
 
 #if defined(SUPPORT_FMGEN)
+void opna_fmgen_setrate(UINT rate);
 void opna_fmgen_setallvolumeFM_linear(int lvol);
 void opna_fmgen_setallvolumePSG_linear(int lvol);
 void opna_fmgen_setallvolumeADPCM_linear(int lvol);

@@ -226,6 +226,7 @@ struct tagNP2Config
 #if defined(SUPPORT_FMGEN)
 	UINT8	usefmgen;
 	UINT8	fmgen55k;
+	UINT8	fmgenTaps;
 #endif	/* SUPPORT_FMGEN */
 
 	UINT8	fddequip;
@@ -454,6 +455,9 @@ void screenvsyncfall(NEVENTITEM item);
 
 
 void pccore_cfgupdate(void);
+#if defined(_WIN32) && !defined(DISABLE_SOUND)
+void pccore_soundreopen(void);
+#endif
 
 #if defined(SUPPORT_IA32_HAXM)
 void pccore_mem_malloc(void);

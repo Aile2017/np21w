@@ -629,8 +629,8 @@ void boardsb16_bind(void) {
 
 #ifdef USE_MAME
 	if (!g_mame_opl3[G_OPL3_INDEX]) {
-		g_mame_opl3[G_OPL3_INDEX] = YMF262Init(14400000, np2cfg.samplingrate);
-		samplerate = np2cfg.samplingrate;
+		g_mame_opl3[G_OPL3_INDEX] = YMF262Init(14400000, soundcfg.rate);
+		samplerate = soundcfg.rate;
 	}
 #endif
 	opl3_bind(&g_opl3[G_OPL3_INDEX]); // MAMEégópÇÃèÍçáKey Displayóp

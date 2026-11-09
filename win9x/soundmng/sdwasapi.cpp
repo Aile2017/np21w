@@ -5,6 +5,9 @@
 
 #include "compiler.h"
 #include "sdwasapi.h"
+#include <MMDeviceAPI.h>
+#include <AudioClient.h>
+#include <AudioPolicy.h>
 #include <atlbase.h>
 #include <Functiondiscoverykeys_devpkey.h>
 
@@ -22,6 +25,126 @@ const IID IID_IAudioClient = __uuidof(IAudioClient);
 
 //! IAudioRenderClient
 const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
+
+namespace
+{
+	volatile LONG s_reopenQueued = 0;
+
+	void NotifyWasapiReopen(HWND hWnd)
+	{
+		if (hWnd != NULL && ::InterlockedCompareExchange(&s_reopenQueued, 1, 0) == 0)
+		{
+			if (!::PostMessage(hWnd, WM_NP2W_WASAPI_REOPEN, 0, 0))
+			{
+				::InterlockedExchange(&s_reopenQueued, 0);
+			}
+		}
+	}
+
+	class CWasapiDeviceNotification : public IMMNotificationClient
+	{
+	public:
+		CWasapiDeviceNotification(HWND hWnd, bool bDefault, const std::wstring& deviceId)
+			: m_refs(1), m_hWnd(hWnd), m_bDefault(bDefault), m_deviceId(deviceId) {}
+
+		STDMETHODIMP QueryInterface(REFIID iid, void** ppv)
+		{
+			if (ppv == NULL) return E_POINTER;
+			*ppv = NULL;
+			if (iid == IID_IUnknown || iid == __uuidof(IMMNotificationClient))
+			{
+				*ppv = static_cast<IMMNotificationClient*>(this);
+				AddRef();
+				return S_OK;
+			}
+			return E_NOINTERFACE;
+		}
+		STDMETHODIMP_(ULONG) AddRef() { return static_cast<ULONG>(::InterlockedIncrement(&m_refs)); }
+		STDMETHODIMP_(ULONG) Release()
+		{
+			const ULONG refs = static_cast<ULONG>(::InterlockedDecrement(&m_refs));
+			if (refs == 0) delete this;
+			return refs;
+		}
+		STDMETHODIMP OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR)
+		{
+			if (m_bDefault && flow == eRender && role == eMultimedia)
+			{
+				NotifyWasapiReopen(m_hWnd);
+			}
+			return S_OK;
+		}
+		STDMETHODIMP OnDeviceAdded(LPCWSTR id) { NotifyExplicitDevice(id); return S_OK; }
+		STDMETHODIMP OnDeviceRemoved(LPCWSTR id) { NotifyExplicitDevice(id); return S_OK; }
+		STDMETHODIMP OnDeviceStateChanged(LPCWSTR id, DWORD) { NotifyExplicitDevice(id); return S_OK; }
+		STDMETHODIMP OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY) { return S_OK; }
+
+	private:
+		void NotifyExplicitDevice(LPCWSTR id)
+		{
+			if (!m_bDefault && id != NULL && !m_deviceId.empty() &&
+				::lstrcmpW(id, m_deviceId.c_str()) == 0)
+			{
+				NotifyWasapiReopen(m_hWnd);
+			}
+		}
+		volatile LONG m_refs;
+		HWND m_hWnd;
+		bool m_bDefault;
+		std::wstring m_deviceId;
+	};
+
+	class CWasapiSessionNotification : public IAudioSessionEvents
+	{
+	public:
+		explicit CWasapiSessionNotification(HWND hWnd) : m_refs(1), m_hWnd(hWnd) {}
+		STDMETHODIMP QueryInterface(REFIID iid, void** ppv)
+		{
+			if (ppv == NULL) return E_POINTER;
+			*ppv = NULL;
+			if (iid == IID_IUnknown || iid == __uuidof(IAudioSessionEvents))
+			{
+				*ppv = static_cast<IAudioSessionEvents*>(this);
+				AddRef();
+				return S_OK;
+			}
+			return E_NOINTERFACE;
+		}
+		STDMETHODIMP_(ULONG) AddRef() { return static_cast<ULONG>(::InterlockedIncrement(&m_refs)); }
+		STDMETHODIMP_(ULONG) Release()
+		{
+			const ULONG refs = static_cast<ULONG>(::InterlockedDecrement(&m_refs));
+			if (refs == 0) delete this;
+			return refs;
+		}
+		STDMETHODIMP OnDisplayNameChanged(LPCWSTR, LPCGUID) { return S_OK; }
+		STDMETHODIMP OnIconPathChanged(LPCWSTR, LPCGUID) { return S_OK; }
+		STDMETHODIMP OnSimpleVolumeChanged(float, BOOL, LPCGUID) { return S_OK; }
+		STDMETHODIMP OnChannelVolumeChanged(DWORD, float[], DWORD, LPCGUID) { return S_OK; }
+		STDMETHODIMP OnGroupingParamChanged(LPCGUID, LPCGUID) { return S_OK; }
+		STDMETHODIMP OnStateChanged(AudioSessionState) { return S_OK; }
+		STDMETHODIMP OnSessionDisconnected(AudioSessionDisconnectReason reason)
+		{
+			if (reason == DisconnectReasonFormatChanged ||
+				reason == DisconnectReasonDeviceRemoval ||
+				reason == DisconnectReasonServerShutdown ||
+				reason == DisconnectReasonExclusiveModeOverride)
+			{
+				NotifyWasapiReopen(m_hWnd);
+			}
+			return S_OK;
+		}
+
+	private:
+		volatile LONG m_refs;
+		HWND m_hWnd;
+	};
+}
+
+void CSoundDeviceWasapi::CompleteReopenRequest()
+{
+	::InterlockedExchange(&s_reopenQueued, 0);
+}
 
 /**
  * 初期化
@@ -106,13 +229,21 @@ void CSoundDeviceWasapi::EnumerateDevices(std::vector<LPCTSTR>& devices)
 /**
  * コンストラクタ
  */
-CSoundDeviceWasapi::CSoundDeviceWasapi()
-	: m_pEnumerator(NULL)
+CSoundDeviceWasapi::CSoundDeviceWasapi(bool bShared)
+	: m_bShared(bShared)
+	, m_bDefaultDevice(true)
+	, m_hWnd(NULL)
+	, m_nMixSamplingRate(0)
+	, m_pEnumerator(NULL)
+	, m_pDeviceNotification(NULL)
 	, m_pDevice(NULL)
 	, m_pAudioClient(NULL)
+	, m_pSessionControl(NULL)
+	, m_pSessionNotification(NULL)
 	, m_pwfx(NULL)
 	, m_pRenderClient(NULL)
 	, m_nBufferSize(0)
+	, m_nSharedOffset(0)
 	, m_mastervolume(100)
 {
 	ZeroMemory(m_hEvents, sizeof(m_hEvents));
@@ -135,34 +266,95 @@ CSoundDeviceWasapi::~CSoundDeviceWasapi()
  */
 bool CSoundDeviceWasapi::Open(LPCTSTR lpDevice, HWND hWnd)
 {
-	if (FAILED(::CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator, reinterpret_cast<PVOID*>(&m_pEnumerator))))
-	{
-		return false;
-	}
-
-	HRESULT hr = E_FAIL;
-	if ((lpDevice) && (lpDevice[0] != '\0'))
+	m_hWnd = hWnd;
+	m_bDefaultDevice = (lpDevice == NULL || lpDevice[0] == 0);
+	m_deviceId.clear();
+	if (!m_bDefaultDevice)
 	{
 		for (std::vector<WasapiDevice>::const_iterator it = sm_devices.begin(); it != sm_devices.end(); ++it)
 		{
 			if (::lstrcmpi(lpDevice, it->szDevice) == 0)
 			{
-				hr = m_pEnumerator->GetDevice(it->id, &m_pDevice);
+				m_deviceId = it->id;
 				break;
 			}
 		}
+		if (m_deviceId.empty()) return false;
 	}
-	else
+	if (FAILED(::CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator, reinterpret_cast<PVOID*>(&m_pEnumerator))))
 	{
-		hr = m_pEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &m_pDevice);
+		return false;
 	}
-
-	if (FAILED(hr))
+	m_pDeviceNotification = new CWasapiDeviceNotification(hWnd, m_bDefaultDevice, m_deviceId);
+	if (FAILED(m_pEnumerator->RegisterEndpointNotificationCallback(m_pDeviceNotification)))
+	{
+		m_pDeviceNotification->Release();
+		m_pDeviceNotification = NULL;
+	}
+	if (!RefreshEndpoint())
 	{
 		Close();
 		return false;
 	}
 	return true;
+}
+
+bool CSoundDeviceWasapi::RefreshEndpoint()
+{
+	if (m_pDevice != NULL)
+	{
+		m_pDevice->Release();
+		m_pDevice = NULL;
+	}
+	m_nMixSamplingRate = 0;
+	if (m_pEnumerator == NULL) return false;
+	HRESULT hr = m_bDefaultDevice ?
+		m_pEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &m_pDevice) :
+		m_pEnumerator->GetDevice(m_deviceId.c_str(), &m_pDevice);
+	if (FAILED(hr))
+	{
+		return false;
+	}
+	if (m_bShared)
+	{
+		IAudioClient* pClient = NULL;
+		WAVEFORMATEX* pMixFormat = NULL;
+		if (SUCCEEDED(m_pDevice->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, reinterpret_cast<PVOID*>(&pClient))))
+		{
+			if (SUCCEEDED(pClient->GetMixFormat(&pMixFormat)) && (pMixFormat != NULL))
+			{
+				m_nMixSamplingRate = pMixFormat->nSamplesPerSec;
+			}
+			pClient->Release();
+		}
+		if (pMixFormat != NULL)
+		{
+			::CoTaskMemFree(pMixFormat);
+		}
+		if ((m_nMixSamplingRate < 8000) || (m_nMixSamplingRate > 384000))
+		{
+			m_pDevice->Release();
+			m_pDevice = NULL;
+			return false;
+		}
+	}
+	return true;
+}
+
+bool CSoundDeviceWasapi::Reopen()
+{
+	DestroyStream();
+	return RefreshEndpoint();
+}
+
+void CSoundDeviceWasapi::QueueReopen()
+{
+	NotifyWasapiReopen(m_hWnd);
+}
+
+UINT CSoundDeviceWasapi::GetSamplingRate(UINT nRequestedRate) const
+{
+	return m_bShared ? m_nMixSamplingRate : nRequestedRate;
 }
 
 /**
@@ -171,6 +363,15 @@ bool CSoundDeviceWasapi::Open(LPCTSTR lpDevice, HWND hWnd)
 void CSoundDeviceWasapi::Close()
 {
 	DestroyStream();
+	if (m_pEnumerator != NULL && m_pDeviceNotification != NULL)
+	{
+		m_pEnumerator->UnregisterEndpointNotificationCallback(m_pDeviceNotification);
+	}
+	if (m_pDeviceNotification != NULL)
+	{
+		m_pDeviceNotification->Release();
+		m_pDeviceNotification = NULL;
+	}
 
 	if (m_pDevice)
 	{
@@ -182,6 +383,9 @@ void CSoundDeviceWasapi::Close()
 		m_pEnumerator->Release();
 		m_pEnumerator = NULL;
 	}
+	m_nMixSamplingRate = 0;
+	m_hWnd = NULL;
+	m_deviceId.clear();
 }
 
 /**
@@ -196,6 +400,10 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
 	do
 	{
 		if (m_pDevice == NULL)
+		{
+			break;
+		}
+		if (m_bShared && (nSamplingRate != m_nMixSamplingRate))
 		{
 			break;
 		}
@@ -219,7 +427,23 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
 		m_pwfx->nBlockAlign = (16 / 8) * nChannels;
 		m_pwfx->wBitsPerSample = 16;
 
-		if (FAILED(m_pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, m_pwfx, NULL)))
+		// Shared mode uses the mix rate, while the Windows audio engine
+		// handles PCM16/stereo conversion to its native mix format.
+		HRESULT hrFormat;
+		if (m_bShared)
+		{
+			WAVEFORMATEX* pClosestMatch = NULL;
+			hrFormat = m_pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, m_pwfx, &pClosestMatch);
+			if (pClosestMatch != NULL)
+			{
+				::CoTaskMemFree(pClosestMatch);
+			}
+		}
+		else
+		{
+			hrFormat = m_pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, m_pwfx, NULL);
+		}
+		if (hrFormat != S_OK)
 		{
 			// printf("invalid format\n");
 			break;
@@ -234,8 +458,9 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
 		{
 			hnsRequestedDuration = static_cast<REFERENCE_TIME>(((nBufferSize * 10000000.0) / nSamplingRate) + 0.5);
 		}
-		HRESULT hr = m_pAudioClient->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST, hnsRequestedDuration, hnsRequestedDuration, m_pwfx, NULL);
-		if (hr == AUDCLNT_ERR(0x019) /* AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED */)
+		const AUDCLNT_SHAREMODE nShareMode = m_bShared ? AUDCLNT_SHAREMODE_SHARED : AUDCLNT_SHAREMODE_EXCLUSIVE;
+		HRESULT hr = m_pAudioClient->Initialize(nShareMode, AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST, hnsRequestedDuration, m_bShared ? 0 : hnsRequestedDuration, m_pwfx, NULL);
+		if (!m_bShared && (hr == AUDCLNT_ERR(0x019) /* AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED */))
 		{
 			UINT32 nCurrentBufferSize = 0;
 			if (FAILED(m_pAudioClient->GetBufferSize(&nCurrentBufferSize)))
@@ -255,6 +480,17 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
 		{
 			break;
 		}
+		if (m_nBufferSize == 0)
+		{
+			break;
+		}
+		if (m_bShared)
+		{
+			// The emulation core consumes one complete block on each Get16 call.
+			// Keep that block and drain it in the smaller WASAPI packets.
+			m_sharedPCM.resize(m_nBufferSize * 2);
+			m_nSharedOffset = m_nBufferSize;
+		}
 
 		m_hEvents[0] = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 		if (FAILED(m_pAudioClient->SetEventHandle(m_hEvents[0])))
@@ -266,13 +502,22 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
 		{
 			break;
 		}
+		if (SUCCEEDED(m_pAudioClient->GetService(__uuidof(IAudioSessionControl), reinterpret_cast<PVOID*>(&m_pSessionControl))))
+		{
+			m_pSessionNotification = new CWasapiSessionNotification(m_hWnd);
+			if (FAILED(m_pSessionControl->RegisterAudioSessionNotification(m_pSessionNotification)))
+			{
+				m_pSessionNotification->Release();
+				m_pSessionNotification = NULL;
+			}
+		}
 
 		SetMasterVolume(m_mastervolume);
 
 		ResetStream();
 
 		m_hEvents[1] = ::CreateEvent(NULL, FALSE, FALSE, NULL);
-		CThreadBase::Start();
+		CThreadBase::Start(THREAD_PRIORITY_ABOVE_NORMAL);
 
 		return m_nBufferSize;
 
@@ -287,6 +532,20 @@ UINT CSoundDeviceWasapi::CreateStream(UINT nSamplingRate, UINT nChannels, UINT n
  */
 void CSoundDeviceWasapi::DestroyStream()
 {
+	if (m_pSessionControl != NULL && m_pSessionNotification != NULL)
+	{
+		m_pSessionControl->UnregisterAudioSessionNotification(m_pSessionNotification);
+	}
+	if (m_pSessionNotification != NULL)
+	{
+		m_pSessionNotification->Release();
+		m_pSessionNotification = NULL;
+	}
+	if (m_pSessionControl != NULL)
+	{
+		m_pSessionControl->Release();
+		m_pSessionControl = NULL;
+	}
 	if (m_hEvents[1])
 	{
 		::SetEvent(m_hEvents[1]);
@@ -311,6 +570,8 @@ void CSoundDeviceWasapi::DestroyStream()
 		::CoTaskMemFree(m_pwfx);
 		m_pwfx = NULL;
 	}
+	m_sharedPCM.clear();
+	m_nSharedOffset = 0;
 
 	for (UINT i = 0; i < _countof(m_hEvents); i++)
 	{
@@ -329,6 +590,12 @@ void CSoundDeviceWasapi::ResetStream()
 {
 	if (m_pRenderClient)
 	{
+		m_nSharedOffset = m_nBufferSize;
+		// Shared streams must be stopped before the queued frames can be discarded.
+		if (m_bShared && FAILED(m_pAudioClient->Reset()))
+		{
+			return;
+		}
 		// Grab the entire buffer for the initial fill operation.
 		BYTE* pData = NULL;
 		HRESULT hr = m_pRenderClient->GetBuffer(m_nBufferSize, &pData);
@@ -349,10 +616,12 @@ bool CSoundDeviceWasapi::PlayStream()
 {
 	if (m_pAudioClient)
 	{
-		if (SUCCEEDED(m_pAudioClient->Start()))
+		const HRESULT hr = m_pAudioClient->Start();
+		if (SUCCEEDED(hr))
 		{
 			return true;
 		}
+		if (hr == AUDCLNT_E_DEVICE_INVALIDATED) QueueReopen();
 	}
 	return false;
 }
@@ -413,24 +682,73 @@ void CSoundDeviceWasapi::FillStream()
 {
 	if (m_pRenderClient)
 	{
+		UINT32 nFrames = m_nBufferSize;
+		if (m_bShared)
+		{
+			UINT32 nPadding = 0;
+			const HRESULT hrPadding = m_pAudioClient->GetCurrentPadding(&nPadding);
+			if (FAILED(hrPadding) || (nPadding > m_nBufferSize))
+			{
+				if (hrPadding == AUDCLNT_E_DEVICE_INVALIDATED) QueueReopen();
+				return;
+			}
+			nFrames -= nPadding;
+			if (nFrames == 0)
+			{
+				return;
+			}
+		}
 		BYTE* pData = NULL;
-		HRESULT hr = m_pRenderClient->GetBuffer(m_nBufferSize, &pData);
+		HRESULT hr = m_pRenderClient->GetBuffer(nFrames, &pData);
 		if (SUCCEEDED(hr))
 		{
-			UINT nStreamLength = 0;
-			if (m_pSoundData)
+			if (m_bShared)
 			{
-				nStreamLength = m_pSoundData->Get16(reinterpret_cast<short*>(pData), m_nBufferSize);
+				SINT16* pDst = reinterpret_cast<SINT16*>(pData);
+				UINT32 nRemaining = nFrames;
+				while (nRemaining != 0)
+				{
+					if (m_nSharedOffset == m_nBufferSize)
+					{
+						UINT nRead = 0;
+						if (m_pSoundData)
+						{
+							nRead = m_pSoundData->Get16(&m_sharedPCM[0], m_nBufferSize);
+						}
+						nRead = min(nRead, m_nBufferSize);
+						if (nRead < m_nBufferSize)
+						{
+							ZeroMemory(&m_sharedPCM[nRead * 2], (m_nBufferSize - nRead) * 2 * sizeof(SINT16));
+						}
+						m_nSharedOffset = 0;
+					}
+					const UINT32 nCopy = min(nRemaining, m_nBufferSize - m_nSharedOffset);
+					CopyMemory(pDst, &m_sharedPCM[m_nSharedOffset * 2], nCopy * 2 * sizeof(SINT16));
+					pDst += nCopy * 2;
+					m_nSharedOffset += nCopy;
+					nRemaining -= nCopy;
+				}
 			}
-			if (nStreamLength != m_nBufferSize)
+			else
 			{
-				ZeroMemory(pData + (nStreamLength * m_pwfx->nBlockAlign), (m_nBufferSize - nStreamLength) * m_pwfx->nBlockAlign);
+				UINT nStreamLength = 0;
+				if (m_pSoundData)
+				{
+					nStreamLength = m_pSoundData->Get16(reinterpret_cast<short*>(pData), nFrames);
+				}
+				if (nStreamLength < nFrames)
+				{
+					ZeroMemory(pData + (nStreamLength * m_pwfx->nBlockAlign), (nFrames - nStreamLength) * m_pwfx->nBlockAlign);
+				}
 			}
-			m_pRenderClient->ReleaseBuffer(m_nBufferSize, 0);
+			if (m_pRenderClient->ReleaseBuffer(nFrames, 0) == AUDCLNT_E_DEVICE_INVALIDATED)
+			{
+				QueueReopen();
+			}
 		}
 		else
 		{
-			printf("err.\n");
+			if (hr == AUDCLNT_E_DEVICE_INVALIDATED) QueueReopen();
 		}
 	}
 }

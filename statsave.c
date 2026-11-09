@@ -907,6 +907,9 @@ static UINT GetSoundFlags(SOUNDID nSoundID)
 		case SOUNDID_SPEAKBOARD:
 			return FLAG_OPNA1;
 
+		case SOUNDID_86_SPEAKBOARD:
+			return FLAG_OPNA1 | FLAG_OPNA2 | FLAG_PCM86;
+
 		case SOUNDID_SPARKBOARD:
 			return FLAG_OPNA1 | FLAG_OPNA2;
 
@@ -1223,6 +1226,7 @@ static int flagload_fm(STFLAGH sfh, const SFENTRY *tbl)
 	}
 	if (nSaveFlags & FLAG_CS4231)
 	{
+		cs4231_update();
 		fmboard_extenable((REG8)(cs4231.extfunc & 1));
 	}
 #if defined(SUPPORT_SOUND_SB16)

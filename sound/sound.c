@@ -226,7 +226,12 @@ BRESULT sound_create(UINT rate, UINT ms) {
 			break;
 
 		default:
-			return(FAILURE);
+			// Shared WASAPI can use a system mix rate outside the preset list.
+			if ((rate < 8000) || (rate > 384000) ||
+			    (soundmng_getrate(0) != rate)) {
+				return(FAILURE);
+			}
+			break;
 	}
 	samples = soundmng_create(rate, ms);
 	if (samples == 0) {
@@ -344,21 +349,7 @@ void sound_sync(void)
 	{
 		return;
 	}
-#ifdef SNDCSEC_TRYENTER
-	if (length < 1024)
-	{
-		if (!SNDCSEC_TRYENTER)
-		{
-			return;
-		}
-	}
-	else
-	{
-		SNDCSEC_ENTER;
-	}
-#else
 	SNDCSEC_ENTER;
-#endif
 	length = clock - soundcfg.lastclock;
 	if (length < soundcfg.minclock)
 	{

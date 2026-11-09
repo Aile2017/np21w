@@ -146,6 +146,7 @@ static unsigned int __stdcall hostdrvNT_changeFSMonitorThread(LPVOID vdParam)
 	return 0;
 }
 
+__declspec(noinline)
 void hostdrvNT_stopMonitorChangeFS()
 {
 	if (s_hChangeFSStopEvent != NULL && s_hChangeFSStopEvent != INVALID_HANDLE_VALUE)

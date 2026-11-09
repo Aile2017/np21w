@@ -13,6 +13,9 @@
 #define CPU_STAT_PM	0
 #endif
 #define CS4231_BUFREADSMP	128
+#define CS4231_DMA_PREROLL_FRAMES	(CS4231_BUFREADSMP * 2)
+#define CS4231_DMA_EMERGENCY_LOW_FRAMES	(CS4231_BUFREADSMP / 2)
+#define CS4231_DMA_EMERGENCY_RECOVER_FRAMES	(CS4231_BUFREADSMP * 2)
 
 #if 0
 #undef  TRACEOUT
@@ -32,6 +35,8 @@ static void trace_fmt_ex(const char* fmt, ...)
 	CS4231CFG	cs4231cfg;
 
 	int cs4231_bufdelaycounter = 0;
+	int cs4231_dma_preroll = 0;
+	static int cs4231_dma_emergency = 0;
 
 	static UINT cs4231_dma_eventframes = CS4231_BUFREADSMP;
 	static UINT32 cs4231_dma_clockfraction = 0;
@@ -107,6 +112,20 @@ static const UINT8 cs4231cnt64[8] = {
 				 512/64,	// 48000/33075
 				2560/64};	//  9600/ 6620
 
+static void cs4231_updatestep(void) {
+	UINT32 r;
+
+	if (!cs4231cfg.rate) {
+		cs4231.step12 = 0;
+		return;
+	}
+	r = cs4231xtal64[cs4231.reg.datafmt & 1] /
+		cs4231cnt64[(cs4231.reg.datafmt >> 1) & 7];
+	TRACEOUT(("samprate = %d", r));
+	cs4231.step12 = (r << 12) / cs4231cfg.rate;
+	TRACEOUT(("step12 = %d", cs4231.step12));
+}
+
 //    640:441
 
 static UINT cs4231_dma_nextframes(void) {
@@ -177,11 +196,14 @@ void cs4231cs_shutdown(void)
 void cs4231_initialize(UINT rate) {
 
 	cs4231cfg.rate = rate;
+	cs4231_update();
 }
 
 void cs4231_reset(void) {
 
 	ZeroMemory(&cs4231, sizeof(cs4231));
+	cs4231_dma_preroll = 0;
+	cs4231_dma_emergency = 0;
 	cs4231.bufsize = CS4231_BUFFERS;
 //	cs4231.proc = cs4231_nodecode;
 	cs4231.dmach = 0xff;
@@ -191,6 +213,13 @@ void cs4231_reset(void) {
 }
 
 void cs4231_update(void) {
+#if defined(SUPPORT_MULTITHREAD)
+	cs4231cs_enter_criticalsection();
+#endif
+	cs4231_updatestep();
+#if defined(SUPPORT_MULTITHREAD)
+	cs4231cs_leave_criticalsection();
+#endif
 }
 
 // ”pŽ~Fcs4231g.c‚Å’²®
@@ -207,6 +236,7 @@ void cs4231_dma(NEVENTITEM item) {
 	UINT	pos;
 	UINT	size;
 	UINT	r = 0;
+	UINT	intervalframes;
 	BOOL	playback_dma;
 	BOOL	capture_dma;
 
@@ -223,6 +253,14 @@ void cs4231_dma(NEVENTITEM item) {
 #if defined(SUPPORT_MULTITHREAD)
 				cs4231cs_enter_criticalsection();
 #endif
+				// Keep normal timing unless the PCM FIFO is close to underrun.
+				// Emergency mode may advance DMA/IRQ timing until the FIFO recovers.
+				if (!cs4231_dma_preroll && dmach->ready &&
+					!(dmac.mask & (1 << cs4231.dmach)) &&
+					cs4231.bufdatas < CS4231_DMA_EMERGENCY_LOW_FRAMES *
+					(UINT)cs4231_playcountshift[cs4231.reg.datafmt >> 4]) {
+					cs4231_dma_emergency = 1;
+				}
 				if (cs4231.bufsize * cs4231_playcountshift[cs4231.reg.datafmt >> 4] / 4 - 4 > cs4231.bufdatas) {
 					rem = min(cs4231.bufsize - 4 - cs4231.bufdatas, CS4231_MAXDMAREADBYTES);
 					pos = cs4231.bufwpos & CS4231_BUFMASK;
@@ -232,6 +270,18 @@ void cs4231_dma(NEVENTITEM item) {
 					r = dmac_getdata_(dmach, cs4231.buffer, pos, size);
 					cs4231.bufwpos = (cs4231.bufwpos + r) & CS4231_BUFMASK;
 					cs4231.bufdatas += r;
+				}
+				if (cs4231_dma_preroll &&
+					(cs4231.bufdatas >= CS4231_DMA_PREROLL_FRAMES *
+						(UINT)cs4231_playcountshift[cs4231.reg.datafmt >> 4] ||
+						(dmac.mask & (1 << cs4231.dmach)) || !dmach->ready)) {
+					cs4231_dma_preroll = 0;
+				}
+				if (cs4231_dma_emergency &&
+					(cs4231.bufdatas >= CS4231_DMA_EMERGENCY_RECOVER_FRAMES *
+						(UINT)cs4231_playcountshift[cs4231.reg.datafmt >> 4] ||
+						(dmac.mask & (1 << cs4231.dmach)) || !dmach->ready)) {
+					cs4231_dma_emergency = 0;
 				}
 #if defined(SUPPORT_MULTITHREAD)
 				cs4231cs_leave_criticalsection();
@@ -249,7 +299,11 @@ void cs4231_dma(NEVENTITEM item) {
 				(playback_dma || capture_dma)) {
 				if (playback_dma) {
 					cs4231_dma_eventframes = cs4231_dma_nextframes();
-					nevent_set(NEVENT_CS4231, cs4231_dma_frameclock(cs4231_dma_eventframes),
+					intervalframes = cs4231_dma_eventframes;
+					if (cs4231_dma_emergency && intervalframes > 1) {
+						intervalframes = (intervalframes + 1) / 2;
+					}
+					nevent_set(NEVENT_CS4231, cs4231_dma_frameclock(intervalframes),
 						cs4231_dma, NEVENT_RELATIVE);
 				}
 				else {
@@ -445,6 +499,7 @@ void cs4231_control(UINT idx, REG8 dat) {
 			cs4231.bufdatas = 0;
 			setdataalign();
 		}
+		cs4231_updatestep();
 		if (cs4231cfg.rate) {
 			UINT32 r;
 			r = cs4231xtal64[dat & 1] / cs4231cnt64[(dat >> 1) & 7];

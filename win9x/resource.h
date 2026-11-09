@@ -317,6 +317,9 @@
 #define IDC_USEFMGEN                    15801
 #define IDC_FMGEN_55K                   15802
 #define IDC_FMGEN_OUTPUTRATE            15803
+#define IDC_FMGEN_TAP65                 15804
+#define IDC_FMGEN_TAP41                 15805
+#define IDC_FMGEN_TAP25                 15806
 #define IDC_CLNDREAL                    16101
 #define IDC_CLNDVIR                     16102
 #define IDC_VIRYEAR                     16103
@@ -624,6 +627,8 @@
 #define IDS_RENDERER_IMODE_PIXEL        32112
 #define IDS_RENDERER_IMODE_PIXEL2       32113
 #define IDS_RENDERER_IMODE_PIXEL3       32114
+#define IDS_WASAPI_EXCLUSIVE            32120
+#define IDS_WASAPI_SHARED               32121
 #define IDM_TOOLWIN                     40001
 #define IDM_KEYDISP                     40002
 #define IDM_SOFTKBD                     40003

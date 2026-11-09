@@ -42,6 +42,9 @@
 #include "mousemng.h"
 #include "scrnmng.h"
 #include "soundmng.h"
+#if defined(SUPPORT_WASAPI)
+#include "soundmng\sdwasapi.h"
+#endif
 #include "soundmng\fddsndout.h"
 #include "sysmng.h"
 #include "winkbd.h"
@@ -2356,6 +2359,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	static int lastmx = -1;
 	static int lastmy = -1;
 	static int lastbtn = -1;
+
+#if defined(SUPPORT_WASAPI) && !defined(DISABLE_SOUND)
+	if (msg == WM_NP2W_WASAPI_REOPEN)
+	{
+		static bool reopening = false;
+		if (!reopening && hWnd == g_hWndMain &&
+			(np2oscfg.cSoundDeviceType == CSoundMng::kWasapi ||
+			 np2oscfg.cSoundDeviceType == CSoundMng::kWasapiShared))
+		{
+			reopening = true;
+			bool wasSuspended = false;
+#if defined(SUPPORT_MULTITHREAD)
+			wasSuspended = np2_multithread_pauseemulation;
+#endif
+			if (!wasSuspended) np2_multithread_Suspend();
+			np2_multithread_EnterCriticalSection();
+			pccore_soundreopen();
+			np2_multithread_LeaveCriticalSection();
+			if (!wasSuspended) np2_multithread_Resume();
+			reopening = false;
+		}
+		CSoundDeviceWasapi::CompleteReopenRequest();
+		return 0;
+	}
+#endif
 
 #if defined(SUPPORT_SCRN_DIRECT3D)
 	if (wmD3DMenuRecalc && msg == wmD3DMenuRecalc) {
