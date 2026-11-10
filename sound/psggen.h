@@ -57,6 +57,8 @@ typedef struct {
 	SINT8		envvolcnt;
 	SINT32		evol;				// !!
 	UINT		puchicount;
+	UINT32		lastperiodclock;
+	UINT8		lastperiodreg;
 } _PSGGEN, *PSGGEN;
 
 typedef struct {

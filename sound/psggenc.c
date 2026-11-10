@@ -5,6 +5,8 @@
 
 #include "compiler.h"
 #include <math.h>
+#include "cpucore.h"
+#include "pccore.h"
 #include "psggen.h"
 
 	PSGGENCFG	psggencfg;
@@ -68,6 +70,7 @@ void psggen_reset(PSGGEN psg) {
 	UINT	i;
 
 	memset(psg, 0, sizeof(*psg));
+	psg->lastperiodreg = 0xff;
 	for (i=0; i<3; i++) {
 		psg->tone[i].pvol = psggencfg.volume + 0;
 	}
@@ -81,18 +84,37 @@ void psggen_restore(PSGGEN psg) {
 
 	UINT	i;
 
+	psg->lastperiodreg = 0xff;
 	for (i=0; i<0x0e; i++) {
 		psggen_setreg(psg, i, ((UINT8 *)&psg->reg)[i]);
 	}
+	psg->lastperiodreg = 0xff;
 }
 
 void psggen_setreg(PSGGEN psg, UINT reg, REG8 value) {
 
 	UINT	ch;
 	UINT	freq;
+	BOOL	pairedWrite;
 
 	reg = reg & 15;
-	if (reg < 14) {
+	pairedWrite = FALSE;
+#if !defined(DISABLE_SOUND)
+	if ((reg < 6) || (reg == 11) || (reg == 12)) {
+		UINT32 clock = CPU_CLOCK + CPU_BASECLOCK - CPU_REMCLOCK;
+		UINT pair = (reg < 6) ? (reg ^ 1) : (23 - reg);
+		// ŠÔŠu‚ª10000clock‚Ü‚Å‚Ì‘‚«ž‚Ý‚È‚çŽ–‘Osound_sync‚¹‚¸ˆê‘Ì‚Æ‚µ‚Äˆµ‚¤i’†“r”¼’[‚Èó‘Ô‚ÅXV‚³‚ê‚ÄˆÙí‰¹‚É‚È‚é‚Ì‚ð–hŽ~j
+		if ((psg->lastperiodreg == pair) && ((UINT32)(clock - psg->lastperiodclock) <= 10000)) {
+			pairedWrite = TRUE;
+		}
+		psg->lastperiodclock = clock;
+		psg->lastperiodreg = (UINT8)reg;
+	}
+	else {
+		psg->lastperiodreg = 0xff;
+	}
+#endif
+	if ((reg < 14) && !pairedWrite) {
 		sound_sync();
 	}
 	((UINT8 *)&psg->reg)[reg] = value;

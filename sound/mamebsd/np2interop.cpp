@@ -45,7 +45,7 @@ void YMF262Shutdown(void* chipptr)
 
 	delete chipbsd;
 }
-//__declspec(noinline)
+__declspec(noinline)
 void YMF262ResetChip(void* chipptr, int samplerate)
 {
 	if (!chipptr) return;
