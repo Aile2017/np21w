@@ -8,7 +8,7 @@
 #if defined(SUPPORT_WAB_NPDISP) && defined(SUPPORT_NPDISP_D3D)
 
 #if defined(SUPPORT_NPDISP_W2K)
-#include "npdisp_w2k.h"
+#include "npdisp2k/npdisp_w2k.h"
 #endif
 
 typedef struct {

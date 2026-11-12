@@ -62,6 +62,9 @@
     <Filter Include="ソース ファイル\wab">
       <UniqueIdentifier>{f43e01c0-5bb4-47a1-8c84-f3f4f40cbc67}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ソース ファイル\wab\npdisp2k">
+      <UniqueIdentifier>{b11badbd-8ce5-40f0-bf4f-01e2bb83a71d}</UniqueIdentifier>
+    </Filter>
     <Filter Include="ソース ファイル\win9x">
       <UniqueIdentifier>{726cbe33-3d3a-4a4e-971c-45e476da141f}</UniqueIdentifier>
     </Filter>
@@ -161,6 +164,9 @@
     </Filter>
     <Filter Include="ヘッダー ファイル\wab">
       <UniqueIdentifier>{54b973e6-85c2-4691-908f-77446d50b5d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\wab\npdisp2k">
+      <UniqueIdentifier>{2bb5c9ab-1fb0-4d34-8448-7d1a25029f21}</UniqueIdentifier>
     </Filter>
     <Filter Include="ヘッダー ファイル\win9x">
       <UniqueIdentifier>{ea5e42aa-6b8e-4dfe-a484-4910f03c4de8}</UniqueIdentifier>
@@ -2397,6 +2403,14 @@
     <ClCompile Include="..\wab\npdisp_newfont.cpp">
       <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_blt.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_gdi.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_output.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_pattern.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_stretch.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_text.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_trace.cpp"><Filter>ソース ファイル\wab\npdisp2k</Filter></ClCompile>
     <ClCompile Include="..\wab\npdisp_dd.cpp">
       <Filter>ソース ファイル\wab</Filter>
     </ClCompile>
@@ -3617,6 +3631,9 @@
     <ClInclude Include="..\wab\npdisp_newfont.h">
       <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k.h"><Filter>ヘッダー ファイル\wab\npdisp2k</Filter></ClInclude>
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k_internal.h"><Filter>ヘッダー ファイル\wab\npdisp2k</Filter></ClInclude>
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k_pattern.h"><Filter>ヘッダー ファイル\wab\npdisp2k</Filter></ClInclude>
     <ClInclude Include="..\wab\npdisp.h">
       <Filter>ヘッダー ファイル\wab</Filter>
     </ClInclude>

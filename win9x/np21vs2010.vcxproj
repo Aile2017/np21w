@@ -152,7 +152,6 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <FloatingPointModel>Fast</FloatingPointModel>
       <FloatingPointExceptions>false</FloatingPointExceptions>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -178,7 +177,6 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <FloatingPointModel>Fast</FloatingPointModel>
       <FloatingPointExceptions>false</FloatingPointExceptions>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -214,7 +212,6 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WarningLevel>Level3</WarningLevel>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -249,7 +246,6 @@
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <WarningLevel>Level3</WarningLevel>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -284,7 +280,6 @@
       <ForcedIncludeFiles>
       </ForcedIncludeFiles>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -327,7 +322,6 @@
       <ForcedIncludeFiles>
       </ForcedIncludeFiles>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <UndefinePreprocessorDefinitions>SUPPORT_NPDISP_W2K</UndefinePreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -966,6 +960,14 @@
     <ClCompile Include="..\wab\ga1280a.cpp" />
     <ClCompile Include="..\wab\npdisp.cpp" />
     <ClCompile Include="..\wab\npdisp_newfont.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_blt.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_gdi.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_output.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_pattern.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_stretch.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_text.cpp" />
+    <ClCompile Include="..\wab\npdisp2k\npdisp_w2k_trace.cpp" />
     <ClCompile Include="..\wab\npdisp_dd.cpp" />
     <ClCompile Include="..\wab\npdisp_ddbridge.cpp" />
     <ClCompile Include="..\wab\npdisp_d3d.cpp" />
@@ -1369,6 +1371,9 @@
     <ClInclude Include="..\wab\npdisp_d3d_sw.h" />
     <ClInclude Include="..\wab\npdispdef.h" />
     <ClInclude Include="..\wab\npdisp_newfont.h" />
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k.h" />
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k_internal.h" />
+    <ClInclude Include="..\wab\npdisp2k\npdisp_w2k_pattern.h" />
     <ClInclude Include="..\wab\npdisp_gdibitblt.h" />
     <ClInclude Include="..\wab\npdisp_gdioutput.h" />
     <ClInclude Include="..\wab\npdisp_mem.h" />

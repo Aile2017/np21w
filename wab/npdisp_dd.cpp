@@ -21,7 +21,7 @@
 #include	"npdisp_dd.h"
 #include	"npdisp_ddbridge.h"
 #if defined(SUPPORT_NPDISP_W2K)
-#include	"npdisp_w2k.h"
+#include	"npdisp2k/npdisp_w2k.h"
 #endif
 #if defined(SUPPORT_NPDISP_D3D)
 #include	"npdisp_d3d.h"

@@ -43,7 +43,7 @@ static void trace_fmt_ex(const char *fmt, ...)
 #if defined(SUPPORT_WAB_NPDISP)
 #include	"wab/npdisp.h"
 #if defined(SUPPORT_NPDISP_W2K)
-#include	"wab/npdisp_w2k.h"
+#include	"wab/npdisp2k/npdisp_w2k.h"
 #endif
 #endif
 #if defined(SUPPORT_WAB_GA1280A)

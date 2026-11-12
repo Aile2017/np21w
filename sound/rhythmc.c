@@ -39,7 +39,7 @@ void rhythm_initialize(UINT rate) {
 
 	for (i=0; i<96; i++) {
 		rhythmcfg.voltbl[i] = (UINT)(32768.0 *
-										pow(2.0, (double)i * (-3.0) / 40.0));
+										pow(10.0, (double)i * (-0.75) / 20.0));
 	}
 }
 

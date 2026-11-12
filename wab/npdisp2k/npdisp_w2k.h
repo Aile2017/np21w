@@ -1,0 +1,739 @@
+/**
+ * @file	npdisp_w2k.h
+ * @brief	NPDISP Windows 2000 linear framebuffer interface
+ */
+
+#pragma once
+
+#if defined(SUPPORT_WAB_NPDISP) && defined(SUPPORT_NPDISP_W2K)
+
+#define NPDISP_W2K_FB_PHYS_BASE        0xc0000000UL
+#define NPDISP_W2K_FB_PRIMARY_SIZE     0x04000000UL
+#define NPDISP_W2K_FB_OFFSCREEN_OFFSET 0x04000000UL
+#define NPDISP_W2K_FB_OFFSCREEN_SIZE   0x0c000000UL
+#define NPDISP_W2K_FB_SIZE             0x10000000UL
+#define NPDISP_W2K_CTL_PHYS_BASE       0xefff0000UL
+#define NPDISP_W2K_CTL_SIZE            0x00001000UL
+
+#define NPDISP_W2K_SIGNATURE           0x3244504eUL
+#define NPDISP_W2K_VERSION             0x00010003UL
+
+#define NPDISP_W2K_REG_SIGNATURE       0x0000
+#define NPDISP_W2K_REG_VERSION         0x0004
+#define NPDISP_W2K_REG_WIDTH           0x0008
+#define NPDISP_W2K_REG_HEIGHT          0x000c
+#define NPDISP_W2K_REG_BPP             0x0010
+#define NPDISP_W2K_REG_STRIDE          0x0014
+#define NPDISP_W2K_REG_MODE_COMMIT     0x0018
+#define NPDISP_W2K_REG_PAL_INDEX       0x001c
+#define NPDISP_W2K_REG_PAL_RGB         0x0020
+#define NPDISP_W2K_REG_PAL_COMMIT      0x0024
+#define NPDISP_W2K_REG_FLAGS           0x0028
+#define NPDISP_W2K_REG_FB_BASE         0x002c
+#define NPDISP_W2K_REG_FB_SIZE         0x0030
+#define NPDISP_W2K_REG_HOSTCALL_ADDR   0x0034
+#define NPDISP_W2K_REG_HOSTCALL_CMD    0x0038
+#define NPDISP_W2K_REG_HOSTCALL_STATUS 0x003c
+
+#define NPDISP_W2K_MODE_COMMIT         0x00000001UL
+#define NPDISP_W2K_MODE_RESET          0x00000002UL
+
+#define NPDISP_W2K_FLAG_PRESENT        0x00000001UL
+#define NPDISP_W2K_FLAG_ENABLED        0x00000002UL
+#define NPDISP_W2K_FLAG_HOSTCALL       0x00000004UL
+#define NPDISP_W2K_FLAG_HOST_MODEINFO  0x00000008UL
+#define NPDISP_W2K_FLAG_HOST_BITBLT    0x00000010UL
+#define NPDISP_W2K_FLAG_HOST_OUTPUT    0x00000020UL
+#define NPDISP_W2K_FLAG_HOST_TEXT      0x00000040UL
+#define NPDISP_W2K_FLAG_HOST_STRETCH   0x00000080UL
+#define NPDISP_W2K_FLAG_HOST_EFFECTS   0x00000100UL
+#define NPDISP_W2K_FLAG_HOST_LINE      0x00000200UL
+#define NPDISP_W2K_FLAG_HOST_PATTERN   0x00000400UL
+#define NPDISP_W2K_FLAG_HOST_DDRAW     0x00000800UL
+#define NPDISP_W2K_FLAG_HOST_POINTER   0x00001000UL
+#define NPDISP_W2K_FLAG_HOST_D3D       0x00002000UL
+
+#define NPDISP_W2K_HOSTCALL_TEST       0x00000001UL
+#define NPDISP_W2K_HOSTCALL_GET_INFO   0x00000002UL
+#define NPDISP_W2K_HOSTCALL_GET_MODE   0x00000003UL
+#define NPDISP_W2K_HOSTCALL_SET_MODE   0x00000004UL
+#define NPDISP_W2K_HOSTCALL_BITBLT     0x00000010UL
+#define NPDISP_W2K_HOSTCALL_OUTPUT     0x00000011UL
+#define NPDISP_W2K_HOSTCALL_GDI        0x00000012UL
+#define NPDISP_W2K_HOSTCALL_DDRAW     0x00000013UL
+#define NPDISP_W2K_HOSTCALL_POINTER   0x00000016UL
+#define NPDISP_W2K_HOSTCALL_D3D       0x00000017UL
+
+#define NPDISP_W2K_HOSTCALL_IDLE        0x00000000UL
+#define NPDISP_W2K_HOSTCALL_OK          0x00000001UL
+#define NPDISP_W2K_HOSTCALL_BAD_REQUEST 0x00000002UL
+#define NPDISP_W2K_HOSTCALL_UNSUPPORTED 0x00000003UL
+
+#define NPDISP_W2K_HOSTCALL_VERSION    0x00010000UL
+#define NPDISP_W2K_HOSTCALL_TEST_XOR   0xa5a55a5aUL
+
+#define NPDISP_W2K_POINTER_SET          0x00000001UL
+#define NPDISP_W2K_POINTER_MOVE         0x00000002UL
+#define NPDISP_W2K_POINTER_HIDE         0x00000003UL
+#define NPDISP_W2K_POINTER_CLEAR        0x00000004UL
+#define NPDISP_W2K_POINTER_MAX_WIDTH    256UL
+#define NPDISP_W2K_POINTER_MAX_HEIGHT   256UL
+
+#define NPDISP_W2K_D3D_SETUP           0x00000000UL
+#define NPDISP_W2K_D3D_CALLBACK        0x00000001UL
+
+#define NPDISP_W2K_D3D_CAPS_VERSION    0x00010001UL
+#define NPDISP_W2K_D3D_MAX_TEXTURE_FORMATS 8UL
+
+#define NPDISP_W2K_D3D_SETUPINFO_HAL              0x00000001UL
+#define NPDISP_W2K_D3D_SETUPINFO_GETDRIVERINFO    0x00000002UL
+#define NPDISP_W2K_D3D_SETUPINFO_CALLBACKS_ACTIVE 0x00000004UL
+
+#define NPDISP_W2K_D3D_CB_CONTEXTCREATE           0x00000001UL
+#define NPDISP_W2K_D3D_CB_CONTEXTDESTROY          0x00000002UL
+#define NPDISP_W2K_D3D_CB_RENDERSTATE             0x00000004UL
+#define NPDISP_W2K_D3D_CB_RENDERPRIMITIVE         0x00000008UL
+#define NPDISP_W2K_D3D_CB_GETSTATE                0x00000010UL
+#define NPDISP_W2K_D3D_CB_CONTEXTDESTROYALL       0x00000020UL
+#define NPDISP_W2K_D3D_CB_SCENECAPTURE            0x00000040UL
+#define NPDISP_W2K_D3D_CB_SETRENDERTARGET         0x00000100UL
+#define NPDISP_W2K_D3D_CB_CLEAR                   0x00000200UL
+#define NPDISP_W2K_D3D_CB_DRAWONEPRIMITIVE        0x00000400UL
+#define NPDISP_W2K_D3D_CB_DRAWONEINDEXEDPRIMITIVE 0x00000800UL
+#define NPDISP_W2K_D3D_CB_DRAWPRIMITIVES          0x00001000UL
+#define NPDISP_W2K_D3D_CB_VALIDATETEXTURESTAGE    0x00010000UL
+#define NPDISP_W2K_D3D_CB_DRAWPRIMITIVES2         0x00020000UL
+#define NPDISP_W2K_D3D_CB_CREATESURFACEEX         0x01000000UL
+#define NPDISP_W2K_D3D_CB_GETDRIVERSTATE          0x02000000UL
+#define NPDISP_W2K_D3D_CB_DESTROYDDLOCAL          0x04000000UL
+
+#define NPDISP_W2K_D3D_DISPATCH_CONTEXTCREATE            0x0300UL
+#define NPDISP_W2K_D3D_DISPATCH_CONTEXTDESTROY           0x0301UL
+#define NPDISP_W2K_D3D_DISPATCH_CONTEXTDESTROYALL        0x0302UL
+#define NPDISP_W2K_D3D_DISPATCH_RENDERSTATE              0x0303UL
+#define NPDISP_W2K_D3D_DISPATCH_RENDERPRIMITIVE          0x0304UL
+#define NPDISP_W2K_D3D_DISPATCH_GETSTATE                 0x0305UL
+#define NPDISP_W2K_D3D_DISPATCH_SCENECAPTURE             0x0306UL
+#define NPDISP_W2K_D3D_DISPATCH_CREATESURFACEEX          0x0310UL
+#define NPDISP_W2K_D3D_DISPATCH_DESTROYDDLOCAL           0x0311UL
+#define NPDISP_W2K_D3D_DISPATCH_GETDRIVERSTATE           0x0312UL
+#define NPDISP_W2K_D3D_DISPATCH_SETRENDERTARGET          0x0320UL
+#define NPDISP_W2K_D3D_DISPATCH_CLEAR                    0x0321UL
+#define NPDISP_W2K_D3D_DISPATCH_DRAWONEPRIMITIVE         0x0322UL
+#define NPDISP_W2K_D3D_DISPATCH_DRAWONEINDEXEDPRIMITIVE  0x0323UL
+#define NPDISP_W2K_D3D_DISPATCH_DRAWPRIMITIVES           0x0324UL
+#define NPDISP_W2K_D3D_DISPATCH_DRAWPRIMITIVES2          0x0330UL
+#define NPDISP_W2K_D3D_DISPATCH_VALIDATETEXTURESTAGE     0x0331UL
+#define NPDISP_W2K_D3D_DISPATCH_TRACE                    0x03ffUL
+
+#define NPDISP_W2K_D3D_TRACE_SETUP         0x00000001UL
+#define NPDISP_W2K_D3D_TRACE_INIT          0x00000002UL
+#define NPDISP_W2K_D3D_TRACE_GETDRIVERINFO 0x00000003UL
+#define NPDISP_W2K_D3D_TRACE_CONTEXTCREATE 0x00000004UL
+
+#define NPDISP_W2K_D3D_GETINFO_CALLBACKS   0x00000001UL
+#define NPDISP_W2K_D3D_GETINFO_CALLBACKS2  0x00000002UL
+#define NPDISP_W2K_D3D_GETINFO_CALLBACKS3  0x00000004UL
+#define NPDISP_W2K_D3D_GETINFO_EXTENDEDCAPS 0x00000008UL
+#define NPDISP_W2K_D3D_GETINFO_MISC2       0x00000010UL
+#define NPDISP_W2K_D3D_GETINFO_ZPIXELFORMATS 0x00000020UL
+
+#define NPDISP_W2K_D3D_D3DDD_COLORMODEL            0x00000001UL
+#define NPDISP_W2K_D3D_D3DDD_DEVCAPS               0x00000002UL
+#define NPDISP_W2K_D3D_D3DDD_TRANSFORMCAPS         0x00000004UL
+#define NPDISP_W2K_D3D_D3DDD_LIGHTINGCAPS          0x00000008UL
+#define NPDISP_W2K_D3D_D3DDD_BCLIPPING             0x00000010UL
+#define NPDISP_W2K_D3D_D3DDD_LINECAPS              0x00000020UL
+#define NPDISP_W2K_D3D_D3DDD_TRICAPS               0x00000040UL
+#define NPDISP_W2K_D3D_D3DDD_DEVICERENDERBITDEPTH  0x00000080UL
+#define NPDISP_W2K_D3D_D3DDD_DEVICEZBUFFERBITDEPTH 0x00000100UL
+#define NPDISP_W2K_D3D_D3DDD_MAXVERTEXCOUNT        0x00000400UL
+
+#define NPDISP_W2K_D3D_D3DDEVCAPS_FLOATTLVERTEX          0x00000001UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_EXECUTESYSTEMMEMORY    0x00000010UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_TLVERTEXSYSTEMMEMORY   0x00000040UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_DRAWPRIMTLVERTEX       0x00000400UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_CANRENDERAFTERFLIP   0x00000800UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_DRAWPRIMITIVES2         0x00002000UL
+#define NPDISP_W2K_D3D_D3DDEVCAPS_HWRASTERIZATION        0x00080000UL
+
+#define NPDISP_W2K_D3D_D3DCOLOR_RGB              0x00000002UL
+#define NPDISP_W2K_D3D_D3DPMISCCAPS_CULLNONE     0x00000010UL
+#define NPDISP_W2K_D3D_D3DPMISCCAPS_CULLCW       0x00000020UL
+#define NPDISP_W2K_D3D_D3DPMISCCAPS_CULLCCW      0x00000040UL
+#define NPDISP_W2K_D3D_D3DPRASTERCAPS_DITHER     0x00000001UL
+#define NPDISP_W2K_D3D_D3DPRASTERCAPS_ZTEST      0x00000010UL
+#define NPDISP_W2K_D3D_D3DPCMPCAPS_ALL           0x000000ffUL
+#define NPDISP_W2K_D3D_D3DPSHADECAPS_COLORFLATRGB    0x00000002UL
+#define NPDISP_W2K_D3D_D3DPSHADECAPS_COLORGOURAUDRGB 0x00000008UL
+#define NPDISP_W2K_D3D_DDBD_16                   0x00000400UL
+#define NPDISP_W2K_D3D_DDBD_24                   0x00000200UL
+#define NPDISP_W2K_D3D_DDBD_32                   0x00000100UL
+
+#define NPDISP_W2K_D3D_DDSD_CAPS        0x00000001UL
+#define NPDISP_W2K_D3D_DDSD_PIXELFORMAT 0x00001000UL
+#define NPDISP_W2K_D3D_DDPF_ALPHAPIXELS 0x00000001UL
+#define NPDISP_W2K_D3D_DDPF_RGB         0x00000040UL
+#define NPDISP_W2K_D3D_DDSCAPS_TEXTURE  0x00001000UL
+
+typedef struct _NPDISP_W2K_D3D_TRANSFORM_CAPS {
+    UINT32 dwSize;
+    UINT32 dwCaps;
+} NPDISP_W2K_D3D_TRANSFORM_CAPS, *PNPDISP_W2K_D3D_TRANSFORM_CAPS;
+
+typedef struct _NPDISP_W2K_D3D_LIGHTING_CAPS {
+    UINT32 dwSize;
+    UINT32 dwCaps;
+    UINT32 dwLightingModel;
+    UINT32 dwNumLights;
+} NPDISP_W2K_D3D_LIGHTING_CAPS, *PNPDISP_W2K_D3D_LIGHTING_CAPS;
+
+typedef struct _NPDISP_W2K_D3D_PRIM_CAPS {
+    UINT32 dwSize;
+    UINT32 dwMiscCaps;
+    UINT32 dwRasterCaps;
+    UINT32 dwZCmpCaps;
+    UINT32 dwSrcBlendCaps;
+    UINT32 dwDestBlendCaps;
+    UINT32 dwAlphaCmpCaps;
+    UINT32 dwShadeCaps;
+    UINT32 dwTextureCaps;
+    UINT32 dwTextureFilterCaps;
+    UINT32 dwTextureBlendCaps;
+    UINT32 dwTextureAddressCaps;
+    UINT32 dwStippleWidth;
+    UINT32 dwStippleHeight;
+} NPDISP_W2K_D3D_PRIM_CAPS, *PNPDISP_W2K_D3D_PRIM_CAPS;
+
+typedef struct _NPDISP_W2K_D3D_DEVICE_DESC {
+    UINT32 dwSize;
+    UINT32 dwFlags;
+    UINT32 dcmColorModel;
+    UINT32 dwDevCaps;
+    NPDISP_W2K_D3D_TRANSFORM_CAPS dtcTransformCaps;
+    UINT32 bClipping;
+    NPDISP_W2K_D3D_LIGHTING_CAPS dlcLightingCaps;
+    NPDISP_W2K_D3D_PRIM_CAPS dpcLineCaps;
+    NPDISP_W2K_D3D_PRIM_CAPS dpcTriCaps;
+    UINT32 dwDeviceRenderBitDepth;
+    UINT32 dwDeviceZBufferBitDepth;
+    UINT32 dwMaxBufferSize;
+    UINT32 dwMaxVertexCount;
+} NPDISP_W2K_D3D_DEVICE_DESC, *PNPDISP_W2K_D3D_DEVICE_DESC;
+
+typedef struct _NPDISP_W2K_D3D_TEXTURE_FORMAT {
+    UINT32 dwFlags;
+    UINT32 dwPixelFormatFlags;
+    UINT32 dwFourCC;
+    UINT32 dwRGBBitCount;
+    UINT32 dwRBitMask;
+    UINT32 dwGBitMask;
+    UINT32 dwBBitMask;
+    UINT32 dwRGBAlphaBitMask;
+    UINT32 dwSurfaceCaps;
+} NPDISP_W2K_D3D_TEXTURE_FORMAT, *PNPDISP_W2K_D3D_TEXTURE_FORMAT;
+
+typedef struct _NPDISP_W2K_D3D_EXTENDED_CAPS {
+    UINT32 dwSize;
+    UINT32 dwMinTextureWidth;
+    UINT32 dwMaxTextureWidth;
+    UINT32 dwMinTextureHeight;
+    UINT32 dwMaxTextureHeight;
+    UINT32 dwMinStippleWidth;
+    UINT32 dwMaxStippleWidth;
+    UINT32 dwMinStippleHeight;
+    UINT32 dwMaxStippleHeight;
+    UINT32 dwMaxTextureRepeat;
+    UINT32 dwMaxTextureAspectRatio;
+    UINT32 dwMaxAnisotropy;
+    float dvGuardBandLeft;
+    float dvGuardBandTop;
+    float dvGuardBandRight;
+    float dvGuardBandBottom;
+    float dvExtentsAdjust;
+    UINT32 dwStencilCaps;
+    UINT32 dwFVFCaps;
+    UINT32 dwTextureOpCaps;
+    UINT16 wMaxTextureBlendStages;
+    UINT16 wMaxSimultaneousTextures;
+    UINT32 dwMaxActiveLights;
+    float dvMaxVertexW;
+    UINT16 wMaxUserClipPlanes;
+    UINT16 wMaxVertexBlendMatrices;
+    UINT32 dwVertexProcessingCaps;
+    UINT32 dwReserved1;
+    UINT32 dwReserved2;
+    UINT32 dwReserved3;
+    UINT32 dwReserved4;
+} NPDISP_W2K_D3D_EXTENDED_CAPS, *PNPDISP_W2K_D3D_EXTENDED_CAPS;
+
+typedef struct _NPDISP_W2K_D3D_CAPS {
+    UINT32 Version;
+    UINT32 Size;
+    UINT32 SetupInfo;
+    UINT32 CallbackMask;
+    UINT32 GetDriverInfoMask;
+    NPDISP_W2K_D3D_DEVICE_DESC HwCaps;
+    NPDISP_W2K_D3D_EXTENDED_CAPS ExtendedCaps;
+    UINT32 TextureFormatCount;
+    NPDISP_W2K_D3D_TEXTURE_FORMAT TextureFormats[NPDISP_W2K_D3D_MAX_TEXTURE_FORMATS];
+} NPDISP_W2K_D3D_CAPS, *PNPDISP_W2K_D3D_CAPS;
+
+typedef struct _NPDISP_W2K_D3D_TRACE {
+    UINT32 Event;
+    UINT32 Values[10];
+} NPDISP_W2K_D3D_TRACE, *PNPDISP_W2K_D3D_TRACE;
+
+
+typedef struct _NPDISP_W2K_D3D_SURFACE {
+    UINT32 SurfaceKey;
+    UINT32 SurfaceHandle;
+    UINT32 Flags;
+    UINT32 Caps;
+    UINT32 Caps2;
+    UINT32 FpVidMem;
+    SINT32 Pitch;
+    UINT32 Width;
+    UINT32 Height;
+    UINT32 PixelFlags;
+    UINT32 RGBBitCount;
+    UINT32 RBitMask;
+    UINT32 GBitMask;
+    UINT32 BBitMask;
+    UINT32 RGBAlphaBitMask;
+    UINT32 ZBufferBitDepth;
+    UINT32 StencilBitDepth;
+    UINT32 ZBitMask;
+    UINT32 StencilBitMask;
+} NPDISP_W2K_D3D_SURFACE, *PNPDISP_W2K_D3D_SURFACE;
+
+typedef struct _NPDISP_W2K_D3D_CONTEXT_CREATE {
+    UINT32 DDLocalKey;
+    NPDISP_W2K_D3D_SURFACE Target;
+    NPDISP_W2K_D3D_SURFACE Depth;
+    UINT32 ProcessId;
+    UINT32 RuntimeVersion;
+    UINT32 Context;
+    SINT32 Result;
+} NPDISP_W2K_D3D_CONTEXT_CREATE, *PNPDISP_W2K_D3D_CONTEXT_CREATE;
+
+typedef struct _NPDISP_W2K_D3D_CONTEXT_DESTROY {
+    UINT32 Context;
+    SINT32 Result;
+} NPDISP_W2K_D3D_CONTEXT_DESTROY, *PNPDISP_W2K_D3D_CONTEXT_DESTROY;
+
+typedef struct _NPDISP_W2K_D3D_CONTEXT_DESTROY_ALL {
+    UINT32 ProcessId;
+    SINT32 Result;
+} NPDISP_W2K_D3D_CONTEXT_DESTROY_ALL, *PNPDISP_W2K_D3D_CONTEXT_DESTROY_ALL;
+
+typedef struct _NPDISP_W2K_D3D_SCENE_CAPTURE {
+    UINT32 Context;
+    UINT32 Flag;
+    SINT32 Result;
+} NPDISP_W2K_D3D_SCENE_CAPTURE, *PNPDISP_W2K_D3D_SCENE_CAPTURE;
+
+typedef struct _NPDISP_W2K_D3D_SET_RENDERTARGET {
+    UINT32 Context;
+    NPDISP_W2K_D3D_SURFACE Target;
+    NPDISP_W2K_D3D_SURFACE Depth;
+    SINT32 Result;
+} NPDISP_W2K_D3D_SET_RENDERTARGET, *PNPDISP_W2K_D3D_SET_RENDERTARGET;
+
+typedef struct _NPDISP_W2K_D3D_CREATE_SURFACE_EX {
+    UINT32 DDLocalKey;
+    NPDISP_W2K_D3D_SURFACE Surface;
+    UINT32 Flags;
+    SINT32 Result;
+} NPDISP_W2K_D3D_CREATE_SURFACE_EX, *PNPDISP_W2K_D3D_CREATE_SURFACE_EX;
+
+typedef struct _NPDISP_W2K_D3D_DESTROY_DDLOCAL {
+    UINT32 DDLocalKey;
+    SINT32 Result;
+} NPDISP_W2K_D3D_DESTROY_DDLOCAL, *PNPDISP_W2K_D3D_DESTROY_DDLOCAL;
+
+typedef struct _NPDISP_W2K_HOSTCALL_D3D_REQUEST {
+    UINT32 Version;
+    UINT32 Size;
+    UINT32 Operation;
+    UINT32 DataAddr;
+    UINT32 DataSize;
+    UINT32 CallbackId;
+    UINT32 Result;
+} NPDISP_W2K_HOSTCALL_D3D_REQUEST, *PNPDISP_W2K_HOSTCALL_D3D_REQUEST;
+
+#define NPDISP_W2K_DDRAW_SETUP         0x00000000UL
+#define NPDISP_W2K_DDRAW_CALLBACK      0x00000001UL
+
+#define NPDISP_W2K_DDRAW_SETUPINFO_MODE_MASK  0x000000ffUL
+#define NPDISP_W2K_DDRAW_SETUPINFO_HOST_ACCEL 0x00000001UL
+#define NPDISP_W2K_DDRAW_SETUPINFO_HEL        0x00000002UL
+#define NPDISP_W2K_DDRAW_SETUPINFO_OVERLAY    0x00000100UL
+
+#define NPDISP_W2K_DD_CB_WAITVB        0x00000004UL
+#define NPDISP_W2K_DD_CB_GETSCANLINE   0x00000007UL
+#define NPDISP_W2K_DD_CB_SURF_FLIP     0x00000101UL
+#define NPDISP_W2K_DD_CB_SURF_BLT      0x00000105UL
+#define NPDISP_W2K_DD_CB_SURF_SETCOLORKEY   0x00000106UL
+#define NPDISP_W2K_DD_CB_SURF_ADDATTACHED   0x00000107UL
+#define NPDISP_W2K_DD_CB_SURF_GETBLTSTATUS  0x00000108UL
+#define NPDISP_W2K_DD_CB_SURF_GETFLIPSTATUS 0x00000109UL
+#define NPDISP_W2K_DD_CB_SURF_UPDATEOVERLAY 0x0000010aUL
+#define NPDISP_W2K_DD_CB_SURF_SETOVERLAYPOS 0x0000010bUL
+
+#define NPDISP_W2K_BITBLT_DST_SCREEN    0x00000001UL
+#define NPDISP_W2K_BITBLT_SRC_SCREEN    0x00000002UL
+#define NPDISP_W2K_BITBLT_MASK_SCREEN   0x00000004UL
+#define NPDISP_W2K_BITBLT_XLATE_TRIVIAL 0x00000008UL
+
+#define NPDISP_W2K_CLIP_TRIVIAL 0x00000000UL
+#define NPDISP_W2K_CLIP_RECT    0x00000001UL
+#define NPDISP_W2K_CLIP_COMPLEX 0x00000002UL
+#define NPDISP_W2K_MAX_CLIP_RECTS 1024UL
+
+#define NPDISP_W2K_OUTPUT_DST_SCREEN   0x00000001UL
+#define NPDISP_W2K_OUTPUT_STROKE       0x00000001UL
+#define NPDISP_W2K_OUTPUT_FILL         0x00000002UL
+#define NPDISP_W2K_OUTPUT_PATH_ELLIPSE 0x00000001UL
+#define NPDISP_W2K_OUTPUT_FILL_WINDING 0x00000002UL
+#define NPDISP_W2K_OUTPUT_PATH_RECT    0x00000004UL
+#define NPDISP_W2K_MAX_PATH_RECORDS    4096UL
+#define NPDISP_W2K_MAX_PATH_POINTS     16384UL
+
+#define NPDISP_W2K_GDI_TEXT_OUT         0x00000001UL
+#define NPDISP_W2K_GDI_STRETCH_BLT      0x00000002UL
+#define NPDISP_W2K_GDI_STRETCH_BLT_ROP  0x00000003UL
+#define NPDISP_W2K_GDI_LINE_TO          0x00000004UL
+#define NPDISP_W2K_GDI_PLG_BLT          0x00000005UL
+#define NPDISP_W2K_GDI_TRANSPARENT_BLT  0x00000006UL
+#define NPDISP_W2K_GDI_ALPHA_BLEND      0x00000007UL
+#define NPDISP_W2K_GDI_GRADIENT_FILL    0x00000008UL
+
+#define NPDISP_W2K_GDI_DST_SCREEN       0x00000001UL
+#define NPDISP_W2K_GDI_SRC_SCREEN       0x00000002UL
+#define NPDISP_W2K_GDI_MASK_SCREEN      0x00000004UL
+#define NPDISP_W2K_GDI_XLATE_TRIVIAL    0x00000008UL
+#define NPDISP_W2K_GDI_TEXT_DIRECT_GLYPHS 0x00000001UL
+#define NPDISP_W2K_GDI_MAX_ARGS         12UL
+#define NPDISP_W2K_GDI_MAX_VALUES       8UL
+
+#define NPDISP_W2K_RBRUSH_SIGNATURE     0x4252574eUL
+
+typedef struct {
+	UINT32 value;
+	UINT32 result;
+} NPDISP_W2K_HOSTCALL_TEST_TARGET;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 value;
+	UINT32 result;
+	UINT32 targetAddr;
+} NPDISP_W2K_HOSTCALL_TEST_REQUEST;
+
+typedef struct {
+	UINT32 width;
+	UINT32 height;
+	UINT32 bitsPerPixel;
+	UINT32 stride;
+	UINT32 redMask;
+	UINT32 greenMask;
+	UINT32 blueMask;
+	UINT32 redBits;
+	UINT32 greenBits;
+	UINT32 blueBits;
+} NPDISP_W2K_MODE_INFO;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 modeCount;
+	UINT32 currentMode;
+} NPDISP_W2K_HOSTCALL_INFO_REQUEST;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 modeIndex;
+	NPDISP_W2K_MODE_INFO mode;
+} NPDISP_W2K_HOSTCALL_MODE_REQUEST;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 modeIndex;
+} NPDISP_W2K_HOSTCALL_SET_MODE_REQUEST;
+
+typedef struct {
+	UINT32 version;
+	UINT32 pendingWidth;
+	UINT32 pendingHeight;
+	UINT32 pendingBpp;
+	UINT32 pendingStride;
+	UINT32 currentMode;
+	UINT32 paletteIndex;
+	UINT32 paletteRgb;
+	UINT32 hostCallAddr;
+	UINT32 hostCallStatus;
+} NPDISP_W2K_STATE;
+
+#define NPDISP_W2K_DDRAW_CAPS_VERSION 0x00010000UL
+#define NPDISP_W2K_DDRAW_ROP_SPACE 8
+
+typedef struct {
+	UINT32 dwCaps;
+} NPDISP_W2K_DDRAW_SURFACE_CAPS;
+
+typedef struct {
+	UINT32 dwSize;
+	UINT32 dwCaps;
+	UINT32 dwCaps2;
+	UINT32 dwCKeyCaps;
+	UINT32 dwFXCaps;
+	UINT32 dwFXAlphaCaps;
+	UINT32 dwPalCaps;
+	UINT32 dwSVCaps;
+	UINT32 dwAlphaBltConstBitDepths;
+	UINT32 dwAlphaBltPixelBitDepths;
+	UINT32 dwAlphaBltSurfaceBitDepths;
+	UINT32 dwAlphaOverlayConstBitDepths;
+	UINT32 dwAlphaOverlayPixelBitDepths;
+	UINT32 dwAlphaOverlaySurfaceBitDepths;
+	UINT32 dwZBufferBitDepths;
+	UINT32 dwVidMemTotal;
+	UINT32 dwVidMemFree;
+	UINT32 dwMaxVisibleOverlays;
+	UINT32 dwCurrVisibleOverlays;
+	UINT32 dwNumFourCCCodes;
+	UINT32 dwAlignBoundarySrc;
+	UINT32 dwAlignSizeSrc;
+	UINT32 dwAlignBoundaryDest;
+	UINT32 dwAlignSizeDest;
+	UINT32 dwAlignStrideAlign;
+	UINT32 dwRops[NPDISP_W2K_DDRAW_ROP_SPACE];
+	NPDISP_W2K_DDRAW_SURFACE_CAPS ddsCaps;
+	UINT32 dwMinOverlayStretch;
+	UINT32 dwMaxOverlayStretch;
+	UINT32 dwMinLiveVideoStretch;
+	UINT32 dwMaxLiveVideoStretch;
+	UINT32 dwMinHwCodecStretch;
+	UINT32 dwMaxHwCodecStretch;
+	UINT32 dwReserved1;
+	UINT32 dwReserved2;
+	UINT32 dwReserved3;
+	UINT32 dwSVBCaps;
+	UINT32 dwSVBCKeyCaps;
+	UINT32 dwSVBFXCaps;
+	UINT32 dwSVBRops[NPDISP_W2K_DDRAW_ROP_SPACE];
+	UINT32 dwVSBCaps;
+	UINT32 dwVSBCKeyCaps;
+	UINT32 dwVSBFXCaps;
+	UINT32 dwVSBRops[NPDISP_W2K_DDRAW_ROP_SPACE];
+	UINT32 dwSSBCaps;
+	UINT32 dwSSBCKeyCaps;
+	UINT32 dwSSBFXCaps;
+	UINT32 dwSSBRops[NPDISP_W2K_DDRAW_ROP_SPACE];
+	UINT32 dwMaxVideoPorts;
+	UINT32 dwCurrVideoPorts;
+	UINT32 dwSVBCaps2;
+} NPDISP_W2K_DDRAW_CORECAPS;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	NPDISP_W2K_DDRAW_CORECAPS coreCaps;
+} NPDISP_W2K_DDRAW_CAPS;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 operation;
+	UINT32 dataAddr;
+	UINT32 frameBufferAddr;
+	UINT32 callbackId;
+	UINT32 result;
+} NPDISP_W2K_HOSTCALL_DDRAW_REQUEST;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 command;
+} NPDISP_W2K_HOSTCALL_HEADER;
+
+typedef struct {
+	UINT16 hotX;
+	UINT16 hotY;
+	UINT16 width;
+	UINT16 height;
+	UINT16 widthBytes;
+	UINT16 color;
+} NPDISP_W2K_CURSOR_SHAPE;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 command;
+	UINT32 operation;
+	SINT32 x;
+	SINT32 y;
+	UINT32 dataOffset;
+	UINT32 dataSize;
+} NPDISP_W2K_HOSTCALL_POINTER_REQUEST;
+
+typedef struct {
+	SINT32 left;
+	SINT32 top;
+	SINT32 right;
+	SINT32 bottom;
+} NPDISP_W2K_RECT;
+
+typedef struct {
+	SINT32 left;
+	SINT32 top;
+	SINT32 right;
+	SINT32 bottom;
+} NPDISP_W2K_RECTFX;
+
+typedef struct {
+	UINT32 flags;
+	UINT32 pointCount;
+} NPDISP_W2K_PATH_RECORD;
+
+typedef struct {
+	SINT32 x;
+	SINT32 y;
+} NPDISP_W2K_POINTFIX;
+
+typedef struct {
+	UINT32 signature;
+	UINT32 size;
+	UINT32 width;
+	UINT32 height;
+	UINT32 targetFormat;
+	UINT32 patternFormat;
+	SINT32 patternStride;
+	UINT32 patternOffset;
+	UINT32 patternSize;
+	UINT32 maskFormat;
+	SINT32 maskStride;
+	UINT32 maskOffset;
+	UINT32 maskSize;
+	UINT32 xlateFlags;
+	UINT32 xlateCount;
+	UINT32 xlateOffset;
+	UINT32 hatch;
+} NPDISP_W2K_RBRUSH;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 command;
+	UINT32 operation;
+	UINT32 surfaceFlags;
+	SINT32 dstOriginX;
+	SINT32 dstOriginY;
+	UINT32 clipType;
+	UINT32 clipRectCount;
+	NPDISP_W2K_RECT clipBounds;
+	UINT32 pathFlags;
+	UINT32 pathRecordCount;
+	UINT32 pathPointCount;
+	NPDISP_W2K_RECTFX pathBounds;
+	UINT32 strokeColor;
+	UINT32 fillColor;
+	UINT32 strokeMix;
+	UINT32 fillMix;
+	UINT32 strokeWidth;
+	UINT32 strokeBrushAddr;
+	UINT32 fillBrushAddr;
+	SINT32 brushOriginX;
+	SINT32 brushOriginY;
+} NPDISP_W2K_HOSTCALL_OUTPUT_REQUEST;
+
+typedef struct {
+    UINT32 version;
+    UINT32 size;
+    UINT32 command;
+    UINT32 operation;
+    UINT32 surfaceFlags;
+    SINT32 dstOriginX;
+    SINT32 dstOriginY;
+    SINT32 srcOriginX;
+    SINT32 srcOriginY;
+    UINT32 clipType;
+    UINT32 clipRectCount;
+    UINT32 clipRectOffset;
+    NPDISP_W2K_RECT clipBounds;
+    UINT32 arg[NPDISP_W2K_GDI_MAX_ARGS];
+    UINT32 value[NPDISP_W2K_GDI_MAX_VALUES];
+    UINT32 extraOffset;
+    UINT32 extraCount;
+    UINT32 extraStride;
+} NPDISP_W2K_HOSTCALL_GDI_REQUEST;
+
+typedef struct {
+	UINT32 version;
+	UINT32 size;
+	UINT32 command;
+	UINT32 surfaceFlags;
+	UINT32 dstSurfaceAddr;
+	UINT32 srcSurfaceAddr;
+	UINT32 maskSurfaceAddr;
+	UINT32 clipObjAddr;
+	UINT32 xlateObjAddr;
+	UINT32 dstRectAddr;
+	UINT32 srcPointAddr;
+	UINT32 maskPointAddr;
+	UINT32 brushObjAddr;
+	UINT32 brushPointAddr;
+	UINT32 rop4;
+	SINT32 dstOriginX;
+	SINT32 dstOriginY;
+	SINT32 srcOriginX;
+	SINT32 srcOriginY;
+	UINT32 clipType;
+	UINT32 clipRectCount;
+	NPDISP_W2K_RECT clipBounds;
+} NPDISP_W2K_HOSTCALL_BITBLT_REQUEST;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void npdisp_w2k_reset(void);
+void npdisp_w2k_restoreScreenMode(void);
+void npdisp_w2k_saveState(NPDISP_W2K_STATE *state);
+int npdisp_w2k_loadState(const NPDISP_W2K_STATE *state);
+void npdisp_w2k_leaveMode(void);
+int npdisp_w2k_isActive(void);
+#if defined(_WIN32) && defined(__cplusplus)
+HBITMAP npdisp_w2k_createPrimaryDIB(HDC hdc, BITMAPINFO *bi, void **bits);
+#endif
+int npdisp_w2k_beginScreenCreate(void);
+void npdisp_w2k_endScreenCreate(void);
+void npdisp_w2k_haxInvalidate(void);
+int npdisp_w2k_haxSync(void);
+void npdisp_w2k_haxUnmap(void);
+int npdisp_w2k_haxIsMapped(void);
+void npdisp_w2k_haxPollDirty(void);
+#if defined(SUPPORT_IA32_WHPX)
+void npdisp_w2k_whpxInvalidate(void);
+int npdisp_w2k_whpxSync(void);
+#endif
+void npdisp_w2k_shutdown(void);
+UINT8 *npdisp_w2k_getFrameBufferHost(void);
+int npdisp_w2k_isFrameBufferAddress(const void *ptr);
+
+int npdisp_w2k_memp_try_read8(UINT32 address, REG8 *value);
+int npdisp_w2k_memp_try_read16(UINT32 address, REG16 *value);
+int npdisp_w2k_memp_try_read32(UINT32 address, UINT32 *value);
+int npdisp_w2k_memp_try_write8(UINT32 address, REG8 value);
+int npdisp_w2k_memp_try_write16(UINT32 address, REG16 value);
+int npdisp_w2k_memp_try_write32(UINT32 address, UINT32 value);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

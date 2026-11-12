@@ -34,7 +34,7 @@
 #include	"vram/vram.h"
 #include	"wab/cirrus_vga_extern.h"
 #if defined(SUPPORT_WAB_NPDISP) && defined(SUPPORT_NPDISP_W2K)
-#include	"wab/npdisp_w2k.h"
+#include	"wab/npdisp2k/npdisp_w2k.h"
 #endif
 
 #if defined(SUPPORT_IA32_WHPX)

@@ -898,6 +898,7 @@ bool npdisp_d3d_getW2kCaps(NPDISP_W2K_D3D_CAPS* caps)
 		NPDISP_W2K_D3D_D3DDEVCAPS_DRAWPRIMTLVERTEX | NPDISP_W2K_D3D_D3DDEVCAPS_CANRENDERAFTERFLIP |
 		NPDISP_W2K_D3D_D3DDEVCAPS_DRAWPRIMITIVES2 | NPDISP_D3DDEVCAPS_DRAWPRIMITIVES2EX |
 		NPDISP_W2K_D3D_D3DDEVCAPS_HWRASTERIZATION;
+	if (npdisp_d3d_tnlEnabled) caps->HwCaps.dwDevCaps |= NPDISP_D3DDEVCAPS_HWTRANSFORMANDLIGHT;
 	caps->HwCaps.dtcTransformCaps.dwSize = sizeof(caps->HwCaps.dtcTransformCaps);
 	caps->HwCaps.bClipping = 1;
 	caps->HwCaps.dlcLightingCaps.dwSize = sizeof(caps->HwCaps.dlcLightingCaps);
@@ -952,6 +953,14 @@ bool npdisp_d3d_getW2kCaps(NPDISP_W2K_D3D_CAPS* caps)
 	caps->ExtendedCaps.wMaxTextureBlendStages = 3;
 	caps->ExtendedCaps.wMaxSimultaneousTextures = 3;
 	caps->ExtendedCaps.dvMaxVertexW = 1.0f;
+	caps->ExtendedCaps.wMaxUserClipPlanes = NPDISP_D3D_MAX_USER_CLIP_PLANES;
+	if (npdisp_d3d_tnlEnabled) {
+		caps->ExtendedCaps.dwMaxActiveLights = NPDISP_D3D_MAX_ACTIVE_LIGHTS;
+		caps->ExtendedCaps.wMaxVertexBlendMatrices = 4;
+		caps->ExtendedCaps.dwVertexProcessingCaps = NPDISP_D3DVTXPCAPS_TEXGEN |
+			NPDISP_D3DVTXPCAPS_DIRECTIONALLIGHTS | NPDISP_D3DVTXPCAPS_POSITIONALLIGHTS |
+			NPDISP_D3DVTXPCAPS_MATERIALSOURCE7 | NPDISP_D3DVTXPCAPS_LOCALVIEWER;
+	}
 
 	caps->TextureFormatCount = 5;
 	caps->TextureFormats[0].dwFlags = NPDISP_W2K_D3D_DDSD_CAPS | NPDISP_W2K_D3D_DDSD_PIXELFORMAT;
@@ -6376,20 +6385,34 @@ static UINT32 npdisp_d3d_w2kContextCreate(UINT32 lpDataAddr)
 	NPDISP_D3D_CONTEXT context = { 0 };
 	UINT32 handle;
 
-	if (!npdisp_d3d_read(&data, lpDataAddr, sizeof(data)) || !data.DDLocalKey || !data.Target.SurfaceKey) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	if (!npdisp_d3d_read(&data, lpDataAddr, sizeof(data))) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT read addr=%08x", lpDataAddr));
+		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	}
+	TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_ENTER key=%08x target=%08x depth=%08x size=%ux%u pitch=%d caps=%08x fp=%08x bpp=%u", data.DDLocalKey,
+		data.Target.SurfaceKey, data.Depth.SurfaceKey, data.Target.Width, data.Target.Height, data.Target.Pitch,
+		data.Target.Caps, data.Target.FpVidMem, data.Target.RGBBitCount));
+	if (!data.DDLocalKey || !data.Target.SurfaceKey) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT missing key or target"));
+		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	}
 	if (!npdisp_d3d_w2kTargetSnapshot(&data.Target, &context.targetSnapshot)) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT target snapshot vram=%08x", npdisp.mm_vramLinearAddr));
 		data.Result = NPDISP_DDERR_CURRENTLYNOTAVAIL;
 		npdisp_d3d_write(&data, lpDataAddr, sizeof(data));
 		return NPDISP_DDHAL_DRIVER_HANDLED;
 	}
 	context.ddLocalNamespace = npdisp_d3d_getDDLocalNamespace(data.DDLocalKey, true);
 	if (!context.ddLocalNamespace) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT namespace key=%08x", data.DDLocalKey));
 		data.Result = NPDISP_DDERR_CURRENTLYNOTAVAIL;
 		npdisp_d3d_write(&data, lpDataAddr, sizeof(data));
 		return NPDISP_DDHAL_DRIVER_HANDLED;
 	}
 	if (!npdisp_d3d_w2kRegisterSurface(context.ddLocalNamespace, &data.Target) ||
 		(data.Depth.SurfaceKey && !npdisp_d3d_w2kRegisterSurface(context.ddLocalNamespace, &data.Depth))) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT register ns=%08x target=%08x depth=%08x", context.ddLocalNamespace,
+			data.Target.SurfaceKey, data.Depth.SurfaceKey));
 		data.Result = NPDISP_DDERR_CURRENTLYNOTAVAIL;
 		npdisp_d3d_write(&data, lpDataAddr, sizeof(data));
 		return NPDISP_DDHAL_DRIVER_HANDLED;
@@ -6399,6 +6422,7 @@ static UINT32 npdisp_d3d_w2kContextCreate(UINT32 lpDataAddr)
 	context.lpDepth = data.Depth.SurfaceKey;
 	handle = npdisp_d3d_allocContext();
 	if (!handle) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT allocate"));
 		data.Result = NPDISP_DDERR_CURRENTLYNOTAVAIL;
 		npdisp_d3d_write(&data, lpDataAddr, sizeof(data));
 		return NPDISP_DDHAL_DRIVER_HANDLED;
@@ -6413,6 +6437,7 @@ static UINT32 npdisp_d3d_w2kContextCreate(UINT32 lpDataAddr)
 	data.Context = handle;
 	data.Result = 0;
 	if (!npdisp_d3d_write(&data, lpDataAddr, sizeof(data))) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_CTX_REJECT write handle=%08x", handle));
 		npdisp_d3d_contexts.erase(handle);
 		npdisp_d3d_tnlContexts.erase(handle);
 		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
@@ -6563,6 +6588,11 @@ static UINT32 npdisp_d3d_w2kTrace(UINT32 lpDataAddr)
 			trace.Values[7], trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[8], trace.Values[9],
 			trace.Values[4], trace.Values[5], trace.Values[6]));
 		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	}
+	else if (trace.Event == NPDISP_W2K_D3D_TRACE_CONTEXTCREATE) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_GUEST_CTX stage=%u arg=%08x key=%08x target=%08x depth=%08x pid=%08x hint=%08x ret=%08x handle=%08x result=%08x",
+			trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[4], trace.Values[5],
+			trace.Values[6], trace.Values[7], trace.Values[8], trace.Values[9]));
 	}
 	else {
 		TRACEOUTD3D(("NPDISP11 D3D_W2K_TRACE_UNKNOWN event=%08x", trace.Event));

@@ -33,7 +33,7 @@
 #include	"npdisp.h"
 #include	"npdisp_internal.h"
 #if defined(SUPPORT_NPDISP_W2K)
-#include	"npdisp_w2k.h"
+#include	"npdisp2k/npdisp_w2k.h"
 #endif
 #include	"npdisp_dd.h"
 #if defined(SUPPORT_NPDISP_D3D)
@@ -6310,7 +6310,6 @@ int npdisp_drawGraphic(void)
 			npdisp_setDirty(npdisp.mm_ddOverlayDstLeft, npdisp.mm_ddOverlayDstTop, npdisp.mm_ddOverlayDstRight, npdisp.mm_ddOverlayDstBottom);
 			npdisp.updated = 1;
 		}
-		npdisp_setDirtyAll();
 	}
 #endif
 	npdisp_d3d_poll();
@@ -7145,7 +7144,11 @@ int npdisp_sfsave(STFLAGH sfh, const SFENTRY* tbl)
 
 		// ステートver.3以降はDirectDrawオフスクリーンVRAMを64KiBページ単位で保存する。
 		// 全0ページは省略し、host backingの実データだけを追加保存する。
-		if (npdisp.version >= 12 && npdisp.isWin9x && npdisp.mm_ddVidMemAddr) {
+		if (npdisp.version >= 12 && ((npdisp.isWin9x && npdisp.mm_ddVidMemAddr)
+#if defined(SUPPORT_NPDISP_W2K)
+			|| npdisp.w2kLfb
+#endif
+			)) {
 			const UINT32 sectionMagic = 0x31564444UL; // "DDV1"
 			const UINT32 pageSize = 0x00010000UL;
 			const UINT32 pageCount = NPDISP_DD_OFFSCREEN_SIZE / pageSize;
@@ -7183,6 +7186,17 @@ int npdisp_sfsave(STFLAGH sfh, const SFENTRY* tbl)
 				}
 			}
 		}
+#if defined(SUPPORT_NPDISP_W2K)
+		if (npdisp.w2kLfb) {
+			const UINT32 sectionMagic = 0x314b3257UL; // "W2K1"
+			const UINT32 sectionSize = sizeof(NPDISP_W2K_STATE);
+			NPDISP_W2K_STATE state;
+			npdisp_w2k_saveState(&state);
+			buffer.insert(buffer.end(), (const UINT8*)&sectionMagic, (const UINT8*)(&sectionMagic + 1));
+			buffer.insert(buffer.end(), (const UINT8*)&sectionSize, (const UINT8*)(&sectionSize + 1));
+			buffer.insert(buffer.end(), (const UINT8*)&state, (const UINT8*)(&state + 1));
+		}
+#endif
 #if defined(SUPPORT_NPDISP_D3D)
 		if (npdisp.acceleration >= NPDISP_ACCEL_DIRECT3D) {
 			const UINT32 sectionMagic = 0x31533344UL; // "D3S1"
@@ -7336,6 +7350,9 @@ int npdisp_sfload(STFLAGH sfh, const SFENTRY* tbl)
 			npdisp_createScreen();
 #if defined(SUPPORT_NPDISP_W2K)
 			npdisp_w2k_endScreenCreate();
+			npdisp_w2k_restoreScreenMode();
+			if (npdisp.w2kLfb && npdisp.acceleration >= NPDISP_ACCEL_DIRECTDRAW &&
+				!npdisp_dd_ensureOffscreenBacking()) goto error;
 #endif
 
 			// OS依存部
@@ -7738,6 +7755,15 @@ int npdisp_sfload(STFLAGH sfh, const SFENTRY* tbl)
 						readBufLen += sectionSize;
 					}
 					else {
+#if defined(SUPPORT_NPDISP_W2K)
+						if (sectionMagic == 0x314b3257UL && npdisp.w2kLfb) {
+							NPDISP_W2K_STATE state;
+							if (sectionSize != sizeof(state)) goto error;
+							ret = statflag_read(sfh, &state, sizeof(state));
+							if (ret != STATFLAG_SUCCESS || !npdisp_w2k_loadState(&state)) goto error;
+						}
+						else
+#endif
 #if defined(SUPPORT_NPDISP_D3D)
 						if (sectionMagic == 0x31533344UL && npdisp.acceleration >= NPDISP_ACCEL_DIRECT3D) {
 							if (!sectionSize || sectionSize > 0x04000000UL) goto error;

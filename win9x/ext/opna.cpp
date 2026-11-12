@@ -25,6 +25,7 @@ static void writeExtendedRegister(POPNA opna, UINT nAddress, REG8 cData);
 #if defined(SUPPORT_FMGEN)
 // Standard OPNA FM calculation clock: 3993600 / (6 * 12) Hz.
 static const UINT kFMGenNativeRate = (OPNA_CLOCK + 36) / 72;
+static const int kFMGenRhythmMuteDb = -192; // Rhythm‚É‚Â‚¢‚Äfmgen‚ÍÁ‰¹‚µnp2‘¤‚ğg‚¤
 
 class FMGenRateConverter
 {
@@ -308,7 +309,7 @@ void opna_fmgen_setallvolumeADPCM_linear(int lvol)
 void opna_fmgen_setallvolumeRhythmTotal_linear(int lvol)
 {
 	for(int i=0;i<opnalistconunt;i++){
-		OPNA_SetVolumeRhythmTotal(opnalist[i]->fmgen, (int)LINEAR2DB((double)lvol / 128));
+		OPNA_SetVolumeRhythmTotal(opnalist[i]->fmgen, kFMGenRhythmMuteDb);
 	}
 }
 #endif	/* SUPPORT_FMGEN */
@@ -394,7 +395,7 @@ void opna_reset(POPNA opna, REG8 cCaps)
 		OPNA_SetVolumeFM(opna->fmgen, (int)LINEAR2DB((double)np2cfg.vol_fm / 128 * np2cfg.vol_master / 100));
 		OPNA_SetVolumePSG(opna->fmgen, (int)LINEAR2DB((double)np2cfg.vol_ssg / 128 * np2cfg.vol_master / 100));
 		OPNA_SetVolumeADPCM(opna->fmgen, (int)LINEAR2DB((double)np2cfg.vol_adpcm / 128 * np2cfg.vol_master / 100));
-		OPNA_SetVolumeRhythmTotal(opna->fmgen, (int)LINEAR2DB((double)np2cfg.vol_rhythm / 128 * np2cfg.vol_master / 100));
+		OPNA_SetVolumeRhythmTotal(opna->fmgen, kFMGenRhythmMuteDb);
 		OPNA_Reset(opna->fmgen);
 		if (cCaps & OPNA_HAS_ADPCM)
 		{
@@ -1095,6 +1096,7 @@ int opna_sfload(POPNA opna, STFLAGH sfh, const SFENTRY *tbl)
 			ret |= readResult;
 			if (readResult == STATFLAG_SUCCESS)
 				OPNA_DataLoad(opna->fmgen, buf);
+			OPNA_SetVolumeRhythmTotal(opna->fmgen, kFMGenRhythmMuteDb);
 			free(buf);
 			FMGenRateConverter* converter = (FMGenRateConverter*)opna->fmgenRateConverter;
 			const UINT fmgenRate = np2cfg.fmgen55k ? kFMGenNativeRate : soundcfg.rate;
