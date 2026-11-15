@@ -627,10 +627,88 @@ int npdisp_readMemory(void* dst, UINT32 lpAddr, int size)
 	}
 	return 0;
 }
+#if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
+// HOSTCALL buffers are accessed outside guest instruction execution. Do not
+// inject a CPU exception or use the Win9x instruction-replay cache here.
+static UINT8* npdisp_w2k_ramEntry(UINT32 addr)
+{
+	addr &= CPU_ADRSMASK;
+	// Conventional RAM and HMA use the main memory array, not CPU_EXTMEMBASE.
+	// HMA and the last conventional RAM page are excluded by the generic
+	// direct-page helper, although both are ordinary RAM on this machine.
+	if (addr < I286_MEMWRITEMAX || (addr >= 0x00100000UL && addr < USE_HIMEM))
+		return mem + addr;
+	UINT8* page = memp_get_direct_host_page(addr & ~CPU_PAGE_MASK);
+	return page ? page + (addr & CPU_PAGE_MASK) : NULL;
+}
+
+static UINT8* npdisp_w2k_linearPage(UINT32 addr, bool write)
+{
+	UINT32 physical = addr;
+	UINT8* pdePtr = NULL;
+	UINT8* ptePtr = NULL;
+	UINT32 pde = 0;
+	UINT32 pte = 0;
+	UINT32 pdeBits = CPU_PDE_ACCESS;
+	UINT32 pteBits = CPU_PTE_ACCESS | (write ? CPU_PTE_DIRTY : 0);
+	UINT8* page;
+	if (CPU_STAT_PAGING) {
+		// The existing IA-32 core uses non-PAE page tables.
+		if (CPU_CR4 & CPU_CR4_PAE) return NULL;
+		pdePtr = npdisp_w2k_ramEntry((CPU_CR3 & CPU_CR3_PD_MASK) + ((addr >> 20) & 0xffcU));
+		if (!pdePtr) return NULL;
+		pde = LOADINTELDWORD(pdePtr);
+		if (!(pde & CPU_PDE_PRESENT)) return NULL;
+		if ((CPU_CR4 & CPU_CR4_PSE) && (pde & CPU_PDE_PAGE_SIZE)) {
+			if (pde & 0x003fe000UL) return NULL; // unsupported reserved/PSE-36 address bits
+			if (write && (CPU_CR0 & CPU_CR0_WP) && !(pde & CPU_PDE_WRITABLE)) return NULL;
+			physical = (pde & CPU_PDE_4M_BASEADDR_MASK) | (addr & 0x003fffffUL);
+			if (write) pdeBits |= CPU_PDE_DIRTY;
+		} else {
+			if (pde & CPU_PDE_PAGE_SIZE) return NULL;
+			ptePtr = npdisp_w2k_ramEntry((pde & CPU_PDE_BASEADDR_MASK) + ((addr >> 10) & 0xffcU));
+			if (!ptePtr) return NULL;
+			pte = LOADINTELDWORD(ptePtr);
+			if (!(pte & CPU_PTE_PRESENT)) return NULL;
+			if (write && (CPU_CR0 & CPU_CR0_WP) && !(pde & pte & CPU_PTE_WRITABLE)) return NULL;
+			physical = (pte & CPU_PTE_BASEADDR_MASK) | (addr & CPU_PAGE_MASK);
+		}
+	}
+	page = npdisp_w2k_ramEntry(physical);
+	if (!page) return NULL;
+	if (pdePtr && (pde & pdeBits) != pdeBits) STOREINTELDWORD(pdePtr, pde | pdeBits);
+	if (ptePtr && (pte & pteBits) != pteBits) STOREINTELDWORD(ptePtr, pte | pteBits);
+	return page;
+}
+
+static int npdisp_w2k_transferLinearMemory(UINT32 addr, void* buffer, UINT32 size, bool write)
+{
+	UINT8* bytes = (UINT8*)buffer;
+	if ((UINT64)addr + size > 0x100000000ULL) return 0;
+	while (size) {
+		UINT32 chunk = min(size, (UINT32)(CPU_PAGE_SIZE - (addr & CPU_PAGE_MASK)));
+		UINT8* guest = npdisp_w2k_linearPage(addr, write);
+		if (!guest) return 0;
+		if (write) memcpy(guest, bytes, chunk);
+		else memcpy(bytes, guest, chunk);
+		addr += chunk;
+		bytes += chunk;
+		size -= chunk;
+	}
+	return 1;
+}
+#endif
+
 // Reads a flat Win32 linear address without interpreting its high word as a selector.
 // DirectDraw 32-bit HAL callback structures use this address form.
 int npdisp_readLinearMemory(void* dst, UINT32 linearAddr, int size)
 {
+#if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
+	if (npdisp.w2kLfb) {
+		if (!linearAddr || !dst || size <= 0) return 0;
+		return npdisp_w2k_transferLinearMemory(linearAddr, dst, (UINT32)size, false);
+	}
+#endif
 	if (!linearAddr || !dst || size <= 0 || npdisp.longjmpnum) return 0;
 	return npdisp_readLMemory(linearAddr, dst, (UINT32)size);
 }
@@ -638,6 +716,12 @@ int npdisp_readLinearMemory(void* dst, UINT32 linearAddr, int size)
 // Writes a flat Win32 linear address without selector translation.
 int npdisp_writeLinearMemory(void* src, UINT32 linearAddr, int size)
 {
+#if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
+	if (npdisp.w2kLfb) {
+		if (!linearAddr || !src || size <= 0) return 0;
+		return npdisp_w2k_transferLinearMemory(linearAddr, src, (UINT32)size, true);
+	}
+#endif
 	if (!linearAddr || !src || size <= 0 || npdisp.longjmpnum) return 0;
 	return npdisp_writeLMemory(linearAddr, src, (UINT32)size);
 }

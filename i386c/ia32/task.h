@@ -30,6 +30,10 @@
 extern "C" {
 #endif
 
+#if defined(SUPPORT_IA32_HAXM) || defined(SUPPORT_IA32_WHPX)
+void CPUCALL cpu_refresh_io_bitmap_after_sync(void);
+#endif
+
 void CPUCALL load_tr(UINT16 selector);
 void CPUCALL get_stack_pointer_from_tss(UINT pl, UINT16 *new_ss, UINT32 *new_esp);
 UINT16 get_backlink_selector_from_tss(void);

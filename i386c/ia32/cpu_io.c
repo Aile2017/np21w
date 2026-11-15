@@ -49,6 +49,9 @@ cpu_io_is_trapped_vm86(UINT port, UINT len)
 	}
 
 	/* Keep this test in sync with check_io() below. */
+#if defined(SUPPORT_IA32_HAXM) || defined(SUPPORT_IA32_WHPX)
+	cpu_refresh_io_bitmap_after_sync();
+#endif
 	if (CPU_STAT_IOLIMIT == 0) {
 		return TRUE;
 	}
@@ -69,6 +72,9 @@ check_io(UINT port, UINT len)
 	UINT16 map;
 	UINT16 mask;
 
+#if defined(SUPPORT_IA32_HAXM) || defined(SUPPORT_IA32_WHPX)
+	cpu_refresh_io_bitmap_after_sync();
+#endif
 	if (CPU_STAT_IOLIMIT == 0) {
 		VERBOSE(("check_io: CPU_STAT_IOLIMIT == 0 (port = %04x, len = %d)", port, len));
 		EXCEPTION(GP_EXCEPTION, 0);

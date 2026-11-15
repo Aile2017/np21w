@@ -571,7 +571,7 @@ static const PFTBL s_IniItems[] =
 	PFMAX("volume_S", PFTYPE_UINT8,		&np2cfg.vol_ssg,		128),
 	PFMAX("volume_A", PFTYPE_UINT8,		&np2cfg.vol_adpcm,		128),
 	PFMAX("volume_P", PFTYPE_UINT8,		&np2cfg.vol_pcm,		128),
-	PFMAX("volume_R", PFTYPE_UINT8,		&np2cfg.vol_rhythm,		128),
+	PFMAX("volume_R", PFTYPE_UINT8,		&np2cfg.vol_rhythm,		255),
 	PFMAX("volume_V", PFTYPE_UINT8,		&np2cfg.vol_midi,		128),
 
 	PFVAL("Seek_Snd", PFTYPE_BOOL,		&np2cfg.MOTOR),

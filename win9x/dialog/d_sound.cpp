@@ -118,7 +118,7 @@ BOOL SndOptMixerPage::OnInitDialog()
 
 	m_rhythm.SubclassDlgItem(IDC_VOLRHYTHM, this);
 	m_rhythm.SetStaticId(IDC_VOLRHYTHMSTR);
-	m_rhythm.SetRange(0, 128);
+	m_rhythm.SetRange(0, 255);
 	m_rhythm.SetPos(np2cfg.vol_rhythm);
 	
 	m_cdda.SubclassDlgItem(IDC_VOLCDDA, this);
@@ -270,7 +270,7 @@ BOOL SndOptMixerPage::OnCommand(WPARAM wParam, LPARAM lParam)
 		m_psg.SetPos(64);
 		m_adpcm.SetPos(64);
 		m_pcm.SetPos(64);
-		m_rhythm.SetPos(64);
+		m_rhythm.SetPos(128);
 		m_cdda.SetPos(128);
 		m_midi.SetPos(128);
 		return TRUE;
@@ -281,7 +281,7 @@ BOOL SndOptMixerPage::OnCommand(WPARAM wParam, LPARAM lParam)
 		m_psg.SetPos(25);
 		m_adpcm.SetPos(64);
 		m_pcm.SetPos(90);
-		m_rhythm.SetPos(64);
+		m_rhythm.SetPos(128);
 		m_cdda.SetPos(128);
 		m_midi.SetPos(128);
 		return TRUE;

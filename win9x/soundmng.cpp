@@ -6,6 +6,9 @@
 #include "compiler.h"
 #include "soundmng.h"
 #include "np2.h"
+#if defined(SUPPORT_WASAPI)
+#include "pccore.h"
+#endif
 #if defined(SUPPORT_ROMEO)
 #include "ext\externalchipmanager.h"
 #endif
@@ -311,6 +314,16 @@ bool CSoundMng::ReopenWasapi()
 		(np2oscfg.cSoundDeviceType == kWasapi || np2oscfg.cSoundDeviceType == kWasapiShared))
 	{
 		result = static_cast<CSoundDeviceWasapi*>(m_pSoundDevice)->Reopen();
+		if (result && np2oscfg.cSoundDeviceType == kWasapiShared)
+		{
+			// Rebuild the existing operation sounds on the new endpoint.
+			m_pSoundDevice->SetPCMVolume(SOUND_PCMSEEK, np2cfg.MOTORVOL);
+			m_pSoundDevice->SetPCMVolume(SOUND_PCMSEEK1, np2cfg.MOTORVOL);
+			m_pSoundDevice->SetPCMVolume(SOUND_RELAY1, np2cfg.MOTORVOL);
+			m_pSoundDevice->LoadPCM(SOUND_PCMSEEK, TEXT("SEEKWAV"));
+			m_pSoundDevice->LoadPCM(SOUND_PCMSEEK1, TEXT("SEEK1WAV"));
+			m_pSoundDevice->LoadPCM(SOUND_RELAY1, TEXT("RELAY1WAV"));
+		}
 	}
 #endif
 	LeaveAllCriticalSection();

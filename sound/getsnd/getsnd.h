@@ -26,10 +26,11 @@ struct _getsnd {
 
 	void		*buf;
 	UINT		remain;
-	long		mrate;
-	long		rem;
-	long		pcml;
-	long		pcmr;
+	SINT64		mixbase;
+	SINT64		mrate;
+	SINT64		rem;
+	SINT64		pcml;
+	SINT64		pcmr;
 
 	UINT8		*datptr;
 	UINT		datsize;

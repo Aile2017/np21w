@@ -1,7 +1,7 @@
 
 #if (MIX_INPUTBIT == 8)
 #define	_SMP_IN		unsigned char
-#define	_SAMP(s)	(((long)(s) - 0x80) << 8)
+#define	_SAMP(s)	(((long)(s) - 0x80) * 256)
 #elif (MIX_INPUTBIT == 16)
 #define	_SMP_IN		short
 #define	_SAMP(s)	(long)(s)
@@ -54,7 +54,7 @@ static _SMP_OUT *FUNC_NOR(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 
 static _SMP_OUT *FUNC_DOWN(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 
-	long	mrate;
+	SINT64	mrate;
 	_SMP_IN	*samp;
 	long	smp;
 
@@ -71,11 +71,11 @@ static _SMP_OUT *FUNC_DOWN(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 			trk->pcml += smp * mrate;
 		}
 		else {
-			long out;
-			long tmp;
+			SINT64 out;
+			SINT64 tmp;
 			out = trk->pcml;
 			out += _SAMP(samp[0]) * trk->rem;
-			out >>= DNBASEBITS;
+			out = mix_divide(out, trk->mixbase);
 			_SAMPLIMIT(out);
 			_OUTSAMP(pcm[0], out);
 			tmp = mrate - trk->rem;
@@ -85,7 +85,7 @@ static _SMP_OUT *FUNC_DOWN(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 			smp >>= 1;
 #endif
 			trk->pcml = smp * tmp;
-			trk->rem = DNMIXBASE - tmp;
+			trk->rem = trk->mixbase - tmp;
 			pcm += 1;
 			if (pcm >= pcmterm) {
 				trk->remain--;
@@ -100,15 +100,15 @@ static _SMP_OUT *FUNC_DOWN(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 static _SMP_OUT *FUNC_UP(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 
 	_SMP_IN	*samp;
-	long	mrate;
+	SINT64	mrate;
 
 	samp = (_SMP_IN *)trk->buf;
 	mrate = trk->mrate;
 	do {
-		long tmp;
-		tmp = UPMIXBASE - trk->rem;
-		if (tmp >= 0) {
-			long dat;
+		SINT64 tmp;
+		tmp = trk->mixbase - trk->rem;
+		if (tmp >= 0 && trk->remain) {
+			SINT64 dat;
 			long next;
 			dat = (trk->pcml * trk->rem);
 			next = _SAMP(*samp++);
@@ -117,7 +117,7 @@ static _SMP_OUT *FUNC_UP(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 			next >>= 1;
 #endif
 			dat += (next * tmp);
-			dat >>= UPBASEBITS;
+			dat = mix_divide(dat, trk->mixbase);
 			_SAMPLIMIT(dat);
 			trk->pcml = next;
 			_OUTSAMP(pcm[0], dat);
@@ -128,9 +128,9 @@ static _SMP_OUT *FUNC_UP(GETSND trk, _SMP_OUT *pcm, _SMP_OUT *pcmterm) {
 				goto upsampterm;
 			}
 		}
-		while(trk->rem >= UPMIXBASE) {
+		while(trk->rem >= trk->mixbase) {
 			long out;
-			trk->rem -= UPMIXBASE;
+			trk->rem -= trk->mixbase;
 			out = trk->pcml;
 			_SAMPLIMIT(out);
 			_OUTSAMP(pcm[0], out);

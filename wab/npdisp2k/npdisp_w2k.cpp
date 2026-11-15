@@ -17,6 +17,7 @@
 #include "../npdispdef.h"
 #include "../npdisp.h"
 #include "../npdisp_internal.h"
+#include "../npdisp_mem.h"
 #include "npdisp_w2k.h"
 #include "npdisp_w2k_internal.h"
 #include "../npdisp_dd.h"
@@ -46,26 +47,6 @@
 #define NPDISP_W2K_MODE16(width, height) { (width), (height), 16, NPDISP_W2K_MODE_STRIDE((width), 16), 0x0000f800, 0x000007e0, 0x0000001f, 5, 6, 5 }
 #define NPDISP_W2K_MODE24(width, height) { (width), (height), 24, NPDISP_W2K_MODE_STRIDE((width), 24), 0x00ff0000, 0x0000ff00, 0x000000ff, 8, 8, 8 }
 #define NPDISP_W2K_MODE32(width, height) { (width), (height), 32, NPDISP_W2K_MODE_STRIDE((width), 32), 0x00ff0000, 0x0000ff00, 0x000000ff, 8, 8, 8 }
-
-#if 0
-static void npdisp_d3d_trace(const char* fmt, ...)
-{
-	char stmp[2048];
-	va_list ap;
-	va_start(ap, fmt);
-#if defined(_MSC_VER)
-	_vsnprintf_s(stmp, sizeof(stmp), _TRUNCATE, fmt, ap);
-#else
-	vsnprintf(stmp, sizeof(stmp), fmt, ap);
-#endif
-	va_end(ap);
-	OutputDebugStringA(stmp);
-	OutputDebugStringA("\n");
-}
-#define TRACEOUTD3D(s) npdisp_d3d_trace s
-#else
-#define TRACEOUTD3D(s) (void)s
-#endif
 
 extern NPDISP_WINDOWS npdispwin;
 
@@ -819,6 +800,23 @@ static UINT32 npdisp_w2k_hostCallPointer(UINT32 requestAddr)
 
 	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || request.command != NPDISP_W2K_HOSTCALL_POINTER) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (request.operation == NPDISP_W2K_POINTER_SET_ALPHA) {
+		NPDISP_W2K_CURSOR_SHAPE shape;
+		if (request.dataOffset < sizeof(request) || request.dataOffset > request.size ||
+			request.dataSize != request.size - request.dataOffset || request.dataSize < sizeof(shape) ||
+			(UINT64)requestAddr + request.size > 0x100000000ULL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		UINT32 shapeAddr = requestAddr + request.dataOffset;
+		if (!npdisp_readLinearMemory(&shape, shapeAddr, sizeof(shape)) ||
+			!shape.width || !shape.height || shape.width > NPDISP_W2K_POINTER_MAX_WIDTH || shape.height > NPDISP_W2K_POINTER_MAX_HEIGHT ||
+			shape.hotX >= shape.width || shape.hotY >= shape.height || shape.color != NPDISP_W2K_POINTER_ALPHA_FORMAT ||
+			shape.widthBytes != shape.width * 4U || request.dataSize != sizeof(shape) + (UINT32)shape.widthBytes * shape.height ||
+			(request.x >= 0 && (request.x >= 0xffff || request.y < 0 || request.y >= 0xffff))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		std::vector<UINT8> pixels((UINT32)shape.widthBytes * shape.height);
+		if (!npdisp_readLinearMemory(&pixels[0], shapeAddr + sizeof(shape), (int)pixels.size()) ||
+			!npdisp_setAlphaCursor(shape.width, shape.height, shape.hotX, shape.hotY,
+				request.x < 0 ? 0xffff : (UINT16)request.x, request.x < 0 ? 0xffff : (UINT16)request.y, &pixels[0])) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		return NPDISP_W2K_HOSTCALL_OK;
+	}
 	if (request.operation == NPDISP_W2K_POINTER_SET) {
 		NPDISP_W2K_CURSOR_SHAPE shape;
 		UINT32 maskBpp;
@@ -909,9 +907,16 @@ static void npdisp_w2k_getDirectDrawCaps(NPDISP_W2K_DDRAW_CAPS* caps, UINT32 set
 
 	if (helMode) return;
 
+	caps->coreCaps.dwCaps2 |= NPDISP_DDCAPS2_WIDESURFACES;
+
 #if defined(SUPPORT_NPDISP_D3D)
 	if (npdisp.acceleration >= NPDISP_ACCEL_DIRECT3D && npdisp.bpp >= 15) {
 		caps->coreCaps.dwCaps2 |= NPDISP_DDCAPS2_CANRENDERWINDOWED;
+		/* Probe: route unscaled SRCCOPY system->video texture uploads to the HAL.
+		 * All other system-memory blits may still fall back to the runtime. */
+		caps->coreCaps.dwCaps |= NPDISP_DDCAPS_CANBLTSYSMEM;
+		caps->coreCaps.dwSVBCaps |= NPDISP_DDCAPS_BLT;
+		caps->coreCaps.dwSVBRops[0xccU >> 5] |= 1UL << (0xccU & 31);
 	}
 #endif
 
@@ -976,11 +981,11 @@ static UINT32 npdisp_w2k_hostCallDirect3D(UINT32 requestAddr)
 
 	if (request.Operation == NPDISP_W2K_D3D_SETUP) {
 		if (!request.DataAddr || request.DataSize < sizeof(caps) || !npdisp_d3d_getW2kCaps(&caps)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		// rev107 did not request a caps revision (CallbackId == 0).
+		if (request.CallbackId == 0) caps.Version = 0x00010001UL;
+		else if (request.CallbackId != NPDISP_W2K_D3D_CAPS_VERSION) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		npdisp_w2k_guestWrite(request.DataAddr, &caps, sizeof(caps));
 		request.Result = 1;
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_SETUP setup=%08x callbacks=%08x getinfo=%08x formats=%u devcaps=%08x stages=%u", caps.SetupInfo,
-			caps.CallbackMask, caps.GetDriverInfoMask, caps.TextureFormatCount, caps.HwCaps.dwDevCaps,
-			caps.ExtendedCaps.wMaxTextureBlendStages));
 	}
 	else if (request.Operation == NPDISP_W2K_D3D_CALLBACK) {
 		if (!request.DataAddr || !request.CallbackId || !npdisp_d3d_getW2kCaps(&caps)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
@@ -1046,6 +1051,15 @@ static void npdisp_w2k_hostCall(UINT32 command)
 	npdisp_w2k_traceHostCall(command, status);
 }
 
+// Read-only status register. Rendering progresses while the guest polls.
+static UINT32 npdisp_w2k_readSyncStatus(void)
+{
+#if defined(SUPPORT_NPDISP_D3D)
+	if (!npdisp_d3d_trySynchronize()) return NPDISP_W2K_SYNC_BUSY;
+#endif
+	return NPDISP_W2K_SYNC_READY;
+}
+
 static UINT32 npdisp_w2k_readRegister(UINT32 offset)
 {
 	switch (offset) {
@@ -1065,10 +1079,13 @@ static UINT32 npdisp_w2k_readRegister(UINT32 offset)
 	{
 		UINT32 flags = NPDISP_W2K_FLAG_PRESENT | NPDISP_W2K_FLAG_HOSTCALL | NPDISP_W2K_FLAG_HOST_MODEINFO |
 			NPDISP_W2K_FLAG_HOST_BITBLT | NPDISP_W2K_FLAG_HOST_OUTPUT | NPDISP_W2K_FLAG_HOST_TEXT |
-			NPDISP_W2K_FLAG_HOST_STRETCH | NPDISP_W2K_FLAG_HOST_PATTERN | NPDISP_W2K_FLAG_HOST_POINTER;
+			NPDISP_W2K_FLAG_HOST_STRETCH | NPDISP_W2K_FLAG_HOST_PATTERN | NPDISP_W2K_FLAG_HOST_POINTER | NPDISP_W2K_FLAG_HOST_ALPHA_POINTER;
 		if (npdisp.acceleration >= NPDISP_ACCEL_DIRECTDRAW) flags |= NPDISP_W2K_FLAG_HOST_DDRAW;
 #if defined(SUPPORT_NPDISP_D3D)
-		if (npdisp.acceleration >= NPDISP_ACCEL_DIRECT3D && npdisp.bpp >= 15) flags |= NPDISP_W2K_FLAG_HOST_D3D;
+		if (npdisp.acceleration >= NPDISP_ACCEL_DIRECT3D) {
+			flags |= NPDISP_W2K_FLAG_HOST_SYNC_POLL;
+			if (npdisp.bpp >= 15) flags |= NPDISP_W2K_FLAG_HOST_D3D;
+		}
 #endif
 		if (npdisp.w2kLfb && npdisp.enabled) flags |= NPDISP_W2K_FLAG_ENABLED;
 		return flags;
@@ -1081,6 +1098,8 @@ static UINT32 npdisp_w2k_readRegister(UINT32 offset)
 		return npdisp_w2k_hostCallAddr;
 	case NPDISP_W2K_REG_HOSTCALL_STATUS:
 		return npdisp_w2k_hostCallStatus;
+	case NPDISP_W2K_REG_SYNC_STATUS:
+		return npdisp_w2k_readSyncStatus();
 	default:
 		return 0;
 	}
@@ -1217,7 +1236,10 @@ int npdisp_w2k_memp_try_read8(UINT32 address, REG8 *value)
 	if (!npdisp.ioenabled || !value) return 0;
 	if (address < NPDISP_W2K_CTL_PHYS_BASE || address >= NPDISP_W2K_CTL_PHYS_BASE + NPDISP_W2K_CTL_SIZE) return 0;
 	offset = address - NPDISP_W2K_CTL_PHYS_BASE;
-	reg = npdisp_w2k_readRegister(offset & ~3UL);
+	// All sync status values fit into the low byte.  Do not poll again for
+	// the upper bytes of a split read.
+	if ((offset & ~3UL) == NPDISP_W2K_REG_SYNC_STATUS && (offset & 3)) reg = 0;
+	else reg = npdisp_w2k_readRegister(offset & ~3UL);
 	*value = (REG8)(reg >> ((offset & 3) * 8));
 	return 1;
 }
@@ -1261,7 +1283,8 @@ int npdisp_w2k_memp_try_write8(UINT32 address, REG8 value)
 	offset = address - NPDISP_W2K_CTL_PHYS_BASE;
 	// Command registers are write-only and require one aligned 32-bit store.
 	// Read/modify/write of a partial value must not execute a command.
-	if ((offset & ~3UL) == NPDISP_W2K_REG_MODE_COMMIT ||
+	if ((offset & ~3UL) == NPDISP_W2K_REG_SYNC_STATUS ||
+		(offset & ~3UL) == NPDISP_W2K_REG_MODE_COMMIT ||
 		(offset & ~3UL) == NPDISP_W2K_REG_PAL_COMMIT ||
 		(offset & ~3UL) == NPDISP_W2K_REG_HOSTCALL_CMD) return 1;
 	shift = (offset & 3) * 8;

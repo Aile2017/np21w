@@ -14,6 +14,7 @@ static const OEMCHAR file_2608top[] = OEMTEXT("2608_top.wav");
 static const OEMCHAR file_2608hh[] = OEMTEXT("2608_hh.wav");
 static const OEMCHAR file_2608tom[] = OEMTEXT("2608_tom.wav");
 static const OEMCHAR file_2608rim[] = OEMTEXT("2608_rim.wav");
+static const OEMCHAR file_2608rym[] = OEMTEXT("2608_rym.wav");
 
 static const OEMCHAR *rhythmfile[6] = {
 				file_2608bd,	file_2608sd,	file_2608top,
@@ -65,7 +66,13 @@ static void rhythm_load(void) {
 	for (i=0; i<6; i++) {
 		if (rhythmcfg.pcm[i].sample == NULL) {
 			getbiospath(path, rhythmfile[i], NELEMENTS(path));
-			pcmmix_regfile(rhythmcfg.pcm + i, path, rhythmcfg.rate);
+			if (pcmmix_regfile(rhythmcfg.pcm + i, path, rhythmcfg.rate) != SUCCESS && i == 5) {
+				getbiospath(path, file_2608rym, NELEMENTS(path));
+				if (pcmmix_regfile(rhythmcfg.pcm + i, path, rhythmcfg.rate) != SUCCESS) {
+					/* fmgen also tries this spelling relative to the process directory. */
+					pcmmix_regfile(rhythmcfg.pcm + i, file_2608rym, rhythmcfg.rate);
+				}
+			}
 		}
 	}
 }

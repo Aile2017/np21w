@@ -8,6 +8,14 @@
 #define	UPBASEBITS	12
 #define	UPMIXBASE	(1 << UPBASEBITS)
 
+/* Preserve the old fixed-point rounding; use exact ratios for other rates. */
+static long mix_divide(SINT64 value, SINT64 base) {
+	if (base == DNMIXBASE) {
+		return (long)(value >> DNBASEBITS);
+	}
+	return (long)((value < 0) ? -((-value + base - 1) / base) : value / base);
+}
+
 
 // 偽物てんぷれーと
 // マイクロソフトはマクロ展開下手だから動作チェキするように。
@@ -98,10 +106,7 @@ BRESULT getsnd_setmixproc(GETSND snd, UINT samprate, UINT channles) {
 
 	int		funcnum;
 
-	if ((snd->samplingrate < 8000) || (snd->samplingrate > 96000)) {
-		goto gssmp_err;
-	}
-	if ((samprate < 8000) || (samprate > 96000)) {
+	if (!snd->samplingrate || !samprate) {
 		goto gssmp_err;
 	}
 
@@ -135,13 +140,23 @@ BRESULT getsnd_setmixproc(GETSND snd, UINT samprate, UINT channles) {
 
 	funcnum *= 3;
 
+	/* Keep the established 12-bit coefficients for existing audio rates.
+	 * Outside that range use the exact input/output ratio with 64-bit sums. */
+	snd->mixbase = snd->samplingrate;
+	snd->mrate = samprate;
+	if (snd->samplingrate >= 8000 && snd->samplingrate <= 96000 &&
+		samprate >= 8000 && samprate <= 96000) {
+		snd->mixbase = DNMIXBASE;
+		snd->mrate = ((SINT64)DNMIXBASE * samprate) / snd->samplingrate;
+	}
+	snd->rem = 0;
+	snd->pcml = 0;
+	snd->pcmr = 0;
 	if (snd->samplingrate > samprate) {
-		snd->mrate = (DNMIXBASE * samprate) / snd->samplingrate;
-		snd->rem = DNMIXBASE;
+		snd->rem = snd->mixbase;
 		funcnum += 1;
 	}
 	else if (snd->samplingrate < samprate) {
-		snd->mrate = (UPMIXBASE * samprate) / snd->samplingrate;
 		funcnum += 2;
 	}
 	snd->cnv = cnvfunc[funcnum];

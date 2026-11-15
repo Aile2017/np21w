@@ -8,6 +8,7 @@
 #if defined(SUPPORT_WAB_NPDISP) && defined(SUPPORT_NPDISP_D3D)
 
 #include	<deque>
+#include	<stddef.h>
 #include	<math.h>
 #include	<map>
 #include	<vector>
@@ -24,7 +25,7 @@
 
 extern NPDISP_WINDOWS npdispwin;
 
-#if 0
+#if defined(NPDISP_VERBOSE_TRACE)
 static void npdisp_11_trace(const char* fmt, ...)
 {
 	char stmp[2048];
@@ -37,10 +38,10 @@ static void npdisp_11_trace(const char* fmt, ...)
 }
 #define TRACEOUT11(s) npdisp_11_trace s
 #else
-#define TRACEOUT11(s) (void)s
+#define TRACEOUT11(s) ((void)0)
 #endif
 
-#if 0
+#if defined(NPDISP_VERBOSE_TRACE)
 static void npdisp_d3d_trace(const char* fmt, ...)
 {
 	char stmp[2048];
@@ -53,7 +54,7 @@ static void npdisp_d3d_trace(const char* fmt, ...)
 }
 #define TRACEOUTD3D(s) npdisp_d3d_trace s
 #else
-#define TRACEOUTD3D(s) (void)s
+#define TRACEOUTD3D(s) ((void)0)
 #endif
 
 #if 0
@@ -214,6 +215,8 @@ static void npdisp_d3d_profTrace(const char* fmt, ...)
 #define NPDISP_D3DDEVINFOID_D3DTEXTUREMANAGER	0x00000002UL
 #define NPDISP_D3DDEVINFOID_TEXTURING			0x00000003UL
 #define NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS	0x80000000UL
+#define NPDISP_D3DHALDP2_W2K_COMMAND_VRAM 0x40000000UL
+#define NPDISP_D3DHALDP2_W2K_VERTEX_VRAM  0x20000000UL
 
 typedef struct {
 	UINT32 dwSize;
@@ -561,7 +564,25 @@ typedef struct {
 	UINT32 caps2;
 	NPDISP_D3D_TARGET_SNAPSHOT targetSnapshot;
 	NPDISP_D3D_TEXTURE_SNAPSHOT textureSnapshot;
+#if defined(SUPPORT_NPDISP_W2K)
+	UINT32 w2kMipSublevelCount;
+	UINT32 w2kMipSublevelKeys[NPDISP_D3D_MAX_MIP_LEVELS - 1];
+	NPDISP_D3D_TEXTURE_SNAPSHOT w2kMipSublevels[NPDISP_D3D_MAX_MIP_LEVELS - 1];
+#endif
 } NPDISP_D3D_SURFACE;
+
+typedef struct {
+	UINT32 ddLocalNamespace;
+	UINT32 handle;
+	UINT32 lpSurface;
+	UINT32 caps2;
+	NPDISP_D3D_TARGET_SNAPSHOT targetSnapshot;
+	NPDISP_D3D_TEXTURE_SNAPSHOT textureSnapshot;
+} NPDISP_D3D_SURFACE_REV107;
+
+#if defined(SUPPORT_NPDISP_W2K)
+typedef char NPDISP_D3D_SURFACE_PREFIX_CHECK[(offsetof(NPDISP_D3D_SURFACE, w2kMipSublevelCount) == sizeof(NPDISP_D3D_SURFACE_REV107)) ? 1 : -1];
+#endif
 
 #if defined(SUPPORT_NPDISP_W2K)
 typedef struct {
@@ -638,7 +659,11 @@ static UINT32 npdisp_d3d_nextLegacyTexture = 1;
 static bool npdisp_d3d_tnlEnabled = true;
 
 #define NPDISP_D3D_STATE_MAGIC 0x31533344UL
+#if defined(SUPPORT_NPDISP_W2K)
+#define NPDISP_D3D_STATE_VERSION 3U
+#else
 #define NPDISP_D3D_STATE_VERSION 2U
+#endif
 
 typedef struct {
 	UINT32 magic;
@@ -844,7 +869,6 @@ static bool npdisp_d3d_add(UINT32 base, UINT32 offset, UINT32* result)
 	return true;
 }
 
-
 static bool npdisp_d3d_guidEqual(const NPDISP_GUID32* a, const NPDISP_GUID32* b)
 {
 	if (!a || !b || a->Data1 != b->Data1 || a->Data2 != b->Data2 || a->Data3 != b->Data3) return false;
@@ -962,7 +986,7 @@ bool npdisp_d3d_getW2kCaps(NPDISP_W2K_D3D_CAPS* caps)
 			NPDISP_D3DVTXPCAPS_MATERIALSOURCE7 | NPDISP_D3DVTXPCAPS_LOCALVIEWER;
 	}
 
-	caps->TextureFormatCount = 5;
+	caps->TextureFormatCount = 6;
 	caps->TextureFormats[0].dwFlags = NPDISP_W2K_D3D_DDSD_CAPS | NPDISP_W2K_D3D_DDSD_PIXELFORMAT;
 	caps->TextureFormats[0].dwPixelFormatFlags = NPDISP_W2K_D3D_DDPF_RGB;
 	caps->TextureFormats[0].dwRGBBitCount = 16;
@@ -991,6 +1015,15 @@ bool npdisp_d3d_getW2kCaps(NPDISP_W2K_D3D_CAPS* caps)
 	caps->TextureFormats[4].dwGBitMask = 0x0000ff00UL;
 	caps->TextureFormats[4].dwBBitMask = 0x000000ffUL;
 	caps->TextureFormats[4].dwRGBAlphaBitMask = 0xff000000UL;
+	/* U8V8 is supported by the renderer and the Win9x HAL.  Advertise it
+	 * to the Win2k D3D runtime so it can promote managed bump maps. */
+	caps->TextureFormats[5] = caps->TextureFormats[0];
+	caps->TextureFormats[5].dwPixelFormatFlags = NPDISP_DDPF_BUMPDUDV;
+	caps->TextureFormats[5].dwRGBBitCount = 16;
+	caps->TextureFormats[5].dwRBitMask = 0x000000ffUL;
+	caps->TextureFormats[5].dwGBitMask = 0x0000ff00UL;
+	caps->TextureFormats[5].dwBBitMask = 0x00000000UL;
+	caps->TextureFormats[5].dwRGBAlphaBitMask = 0x00000000UL;
 	return true;
 }
 #endif
@@ -1453,6 +1486,17 @@ void npdisp_d3d_flush(void)
 	if (InterlockedExchange(&npdisp_d3d_asyncError, 0)) TRACEOUTD3D(("NPDISP11 D3D_ASYNC_ERROR worker command failed"));
 }
 
+// The idle event covers queued and executing rendering commands.
+bool npdisp_d3d_trySynchronize(void)
+{
+	if (npdisp_d3d_asyncInitialized) {
+		if (!npdisp_d3d_asyncIdle || WaitForSingleObject(npdisp_d3d_asyncIdle, 0) != WAIT_OBJECT_0) return false;
+	}
+	npdisp_d3d_poll();
+	if (InterlockedExchange(&npdisp_d3d_asyncError, 0)) TRACEOUTD3D(("NPDISP11 D3D_ASYNC_ERROR worker command failed"));
+	return true;
+}
+
 void npdisp_d3d_poll(void)
 {
 	if (InterlockedExchange(&npdisp_d3d_asyncVisibleDirty, 0)) {
@@ -1651,7 +1695,6 @@ static NPDISP_D3D_TNL_CONTEXT* npdisp_d3d_getTnlContext(UINT32 handle)
 	it = npdisp_d3d_tnlContexts.find(handle);
 	return (it != npdisp_d3d_tnlContexts.end()) ? &it->second : NULL;
 }
-
 
 static UINT32 npdisp_d3d_getDDLocalNamespace(UINT32 lpDDLcl, bool create)
 {
@@ -2016,6 +2059,7 @@ static bool npdisp_d3d_depthSurfaceInfo(UINT32 lpSurface, NPDISP_D3D_SW_DEPTH_TA
 	UINT32 stencil;
 	SINT32 pitch;
 #if defined(SUPPORT_NPDISP_W2K)
+	if (npdisp.w2kLfb) return npdisp_d3d_w2kDepthSurfaceInfo(lpSurface, target, depthMask, stencilBits);
 	if (npdisp_d3d_w2kDepthSurfaceInfo(lpSurface, target, depthMask, stencilBits)) return true;
 #endif
 	if (!lpSurface || !target || !npdisp_d3d_read(&lcl, lpSurface, sizeof(lcl)) || !lcl.lpGbl ||
@@ -2099,6 +2143,47 @@ static bool npdisp_d3d_rawBufferRead(UINT32 base, UINT32 offset, void* dst, UINT
 		TRACEOUTD3D(("NPDISP11 D3D_RAWBUF_REJECT stage=memory base=%08x addr=%08x off=%u size=%u", base, addr, offset, size));
 		return false;
 	}
+	return true;
+}
+
+// DP2 parsing is synchronous on the emulation thread.
+static bool npdisp_d3d_w2kBufferReadFailed = false;
+static bool npdisp_d3d_w2kLegacyBuffers = false;
+// Win2000 passes a RAM address or a VRAM offset explicitly.
+static bool npdisp_d3d_w2kBufferRead(UINT32 base, UINT32 offset, void* dst, UINT32 size, bool video)
+{
+	UINT32 addr;
+	UINT64 end;
+	const UINT8* src;
+	if (!dst || !size || !npdisp_d3d_add(base, offset, &addr)) {
+		npdisp_d3d_w2kBufferReadFailed = true;
+		return false;
+	}
+	end = (UINT64)addr + size;
+	if (!video) {
+		if (end > 0x100000000ULL || !npdisp_d3d_read(dst, addr, size)) {
+			npdisp_d3d_w2kBufferReadFailed = true;
+#if defined(NPDISP_VERBOSE_TRACE)
+			static UINT32 failures = 0;
+			++failures;
+			if (failures <= 16U || !(failures & 0xfffU))
+				TRACEOUTD3D(("NPDISP11 D3D_W2K_BUFFER_FAIL addr=%08x size=%u n=%u", addr, size, failures));
+#endif
+			return false;
+		}
+		return true;
+	}
+	if (addr < NPDISP_DD_PRIMARY_REGION_SIZE && end <= NPDISP_DD_PRIMARY_REGION_SIZE &&
+		npdisp.mm_screenPtr && end <= npdisp.mm_screenSize) src = npdisp.mm_screenPtr + addr;
+	else if (addr >= NPDISP_DD_OFFSCREEN_OFFSET && end <= NPDISP_DD_APERTURE_SIZE &&
+		npdisp.mm_ddOffscreenPtr && npdisp.mm_ddOffscreenSize == NPDISP_DD_OFFSCREEN_SIZE &&
+		end - NPDISP_DD_OFFSCREEN_OFFSET <= NPDISP_DD_OFFSCREEN_SIZE)
+		src = npdisp.mm_ddOffscreenPtr + (addr - NPDISP_DD_OFFSCREEN_OFFSET);
+	else {
+		npdisp_d3d_w2kBufferReadFailed = true;
+		return false;
+	}
+	memcpy(dst, src, size);
 	return true;
 }
 
@@ -2454,13 +2539,23 @@ static bool npdisp_d3d_nextMipSurface(UINT32 lpSurface, UINT32 width, UINT32 hei
 	return npdisp_d3d_mipSurfaceFromList(lcl.lpAttachListFrom, nextWidth, nextHeight, lpNext);
 }
 
-static bool npdisp_d3d_captureMipSnapshots(UINT32 lpSurface, const NPDISP_D3D_TEXTURE_SNAPSHOT* top, NPDISP_D3D_TEXTURE_SNAPSHOT* snapshots, UINT32* count)
+static bool npdisp_d3d_captureMipSnapshots(UINT32 lpSurface, const NPDISP_D3D_TEXTURE_SNAPSHOT* top, NPDISP_D3D_TEXTURE_SNAPSHOT* snapshots, UINT32* count, const NPDISP_D3D_SURFACE* registered)
 {
 	UINT32 currentSurface = lpSurface;
 	if (!lpSurface || !top || !top->valid || !snapshots || !count) return false;
 	memset(snapshots, 0, sizeof(NPDISP_D3D_TEXTURE_SNAPSHOT) * NPDISP_D3D_MAX_MIP_LEVELS);
 	snapshots[0] = *top;
 	*count = 1;
+#if defined(SUPPORT_NPDISP_W2K)
+	if (npdisp.w2kLfb) {
+		if (registered) {
+			for (UINT32 i = 0; i < registered->w2kMipSublevelCount; ++i)
+				snapshots[i + 1] = registered->w2kMipSublevels[i];
+			*count += registered->w2kMipSublevelCount;
+		}
+		return true;
+	}
+#endif
 	for (UINT32 level = 1; level < NPDISP_D3D_MAX_MIP_LEVELS; ++level) {
 		UINT32 nextSurface = 0;
 		NPDISP_D3D_TEXTURE_SNAPSHOT next;
@@ -2523,6 +2618,7 @@ static bool npdisp_d3d_prepareTextureStage(NPDISP_D3D_CONTEXT* context, UINT32 s
 	UINT32 textureSurface = 0;
 	UINT32 textureNamespace = 0;
 	NPDISP_D3D_TEXTURE_SNAPSHOT* textureSnapshot = NULL;
+	const NPDISP_D3D_SURFACE* registeredSurface = NULL;
 	const NPDISP_D3D_PALETTE* palette = NULL;
 	UINT32 mipCount = 1U;
 	UINT32 caps2 = 0;
@@ -2548,6 +2644,7 @@ static bool npdisp_d3d_prepareTextureStage(NPDISP_D3D_CONTEXT* context, UINT32 s
 					textureSurface = it->second.lpSurface;
 					textureNamespace = it->second.ddLocalNamespace;
 					textureSnapshot = &it->second.textureSnapshot;
+					registeredSurface = &it->second;
 				}
 			}
 			else {
@@ -2556,11 +2653,13 @@ static bool npdisp_d3d_prepareTextureStage(NPDISP_D3D_CONTEXT* context, UINT32 s
 					if (textureSurface) {
 						textureSurface = 0;
 						textureSnapshot = NULL;
+						registeredSurface = NULL;
 						break;
 					}
 					textureSurface = it->second.lpSurface;
 					textureNamespace = it->second.ddLocalNamespace;
 					textureSnapshot = &it->second.textureSnapshot;
+					registeredSurface = &it->second;
 				}
 			}
 			if (!textureSurface) {
@@ -2608,11 +2707,13 @@ static bool npdisp_d3d_prepareTextureStage(NPDISP_D3D_CONTEXT* context, UINT32 s
 				textureSurface = it->second.lpSurface;
 				textureNamespace = it->second.ddLocalNamespace;
 				textureSnapshot = &it->second.textureSnapshot;
-				if (!it->second.caps2 && npdisp_d3d_surfaceCaps2(textureSurface, &caps2)) it->second.caps2 = caps2;
+				registeredSurface = &it->second;
+				if (!npdisp.w2kLfb && !it->second.caps2 && npdisp_d3d_surfaceCaps2(textureSurface, &caps2)) it->second.caps2 = caps2;
 				else caps2 = it->second.caps2;
 			}
 		}
 	}
+	else if (npdisp.w2kLfb && registeredSurface) caps2 = registeredSurface->caps2;
 	else npdisp_d3d_surfaceCaps2(textureSurface, &caps2);
 	cubeMap = (caps2 & NPDISP_DDSCAPS2_CUBEMAP) != 0;
 	if (boundSurface) *boundSurface = textureSurface;
@@ -2749,7 +2850,7 @@ static bool npdisp_d3d_prepareTextureStage(NPDISP_D3D_CONTEXT* context, UINT32 s
 	memset(mipSnapshots, 0, sizeof(mipSnapshots));
 	mipSnapshots[0] = *snapshot;
 	if (!cubeMap && mipFilter != NPDISP_D3DTFP_NONE &&
-		!npdisp_d3d_captureMipSnapshots(textureSurface, snapshot, mipSnapshots, &mipCount)) {
+		!npdisp_d3d_captureMipSnapshots(textureSurface, snapshot, mipSnapshots, &mipCount, registeredSurface)) {
 		TRACEOUTD3D(("NPDISP11 D3D_TEXTURE_REJECT reason=mip-chain stage=%u handle=%08x", stage, handle));
 		return false;
 	}
@@ -3505,8 +3606,10 @@ static bool npdisp_d3d_drawPrimitive(NPDISP_D3D_CONTEXT* context, UINT32 primiti
 	const UINT16* drawIndices = indices;
 	UINT32 drawIndexCount = indexCount;
 	UINT32 count = indices ? indexCount : vertexCount;
+
 	if (!context || !vertices || !context->lpTarget || count > NPDISP_D3D_MAX_VERTICES) return false;
 	{
+
 		UINT32 clipPrimitiveType = 0xffffffffUL;
 		if (!npdisp_d3d_clipDrawPrimitive(context, primitiveType, vertices, vertexCount, indices, indexCount,
 			&clipPrimitiveType, &clippedVertices)) return false;
@@ -3519,6 +3622,7 @@ static bool npdisp_d3d_drawPrimitive(NPDISP_D3D_CONTEXT* context, UINT32 primiti
 			drawIndexCount = 0;
 		}
 	}
+
 	if (context->targetSnapshot.valid && context->targetSnapshot.systemMemory) {
 		npdisp_d3d_flush();
 		return npdisp_d3d_drawPrimitiveImmediate(context, drawPrimitiveType, drawVertices, drawVertexCount, drawIndices, drawIndexCount);
@@ -3544,6 +3648,7 @@ static bool npdisp_d3d_drawPrimitive(NPDISP_D3D_CONTEXT* context, UINT32 primiti
 		delete command;
 		return false;
 	}
+
 	if (command->state.zEnable || command->state.stencilEnable) {
 		if (!context->lpDepth || !npdisp_d3d_depthSurfaceInfo(context->lpDepth, &command->depth, &command->state.depthMask, &command->state.stencilBits) ||
 			command->depth.width < command->target.sw.width || command->depth.height < command->target.sw.height ||
@@ -3554,6 +3659,7 @@ static bool npdisp_d3d_drawPrimitive(NPDISP_D3D_CONTEXT* context, UINT32 primiti
 		}
 		command->hasDepth = true;
 	}
+
 	command->vertices.assign(drawVertices, drawVertices + drawVertexCount);
 	if (drawIndices && drawIndexCount) command->indices.assign(drawIndices, drawIndices + drawIndexCount);
 	if (!npdisp_d3d_asyncEnqueue(command)) {
@@ -3563,13 +3669,64 @@ static bool npdisp_d3d_drawPrimitive(NPDISP_D3D_CONTEXT* context, UINT32 primiti
 	return true;
 }
 
+// Use the rev107 state layout unless Win2000 mip-chain metadata must be saved.
+static UINT32 npdisp_d3d_stateVersion(void)
+{
+#if defined(SUPPORT_NPDISP_W2K)
+    for (std::map<UINT64, NPDISP_D3D_SURFACE>::const_iterator it = npdisp_d3d_surfaces.begin(); it != npdisp_d3d_surfaces.end(); ++it)
+        if (it->second.w2kMipSublevelCount) return 3U;
+#endif
+    return 2U;
+}
+
+static bool npdisp_d3d_stateWriteSurfaces(UINT8** dst, UINT32* remain, UINT32 version)
+{
+    if (version >= 3U) return npdisp_d3d_stateWriteMap(dst, remain, npdisp_d3d_surfaces);
+    for (std::map<UINT64, NPDISP_D3D_SURFACE>::const_iterator it = npdisp_d3d_surfaces.begin(); it != npdisp_d3d_surfaces.end(); ++it) {
+        const UINT32 bytes = sizeof(UINT64) + sizeof(NPDISP_D3D_SURFACE_REV107);
+        if (*remain < bytes) return false;
+        memcpy(*dst, &it->first, sizeof(UINT64));
+        memcpy(*dst + sizeof(UINT64), &it->second, sizeof(NPDISP_D3D_SURFACE_REV107));
+        *dst += bytes;
+        *remain -= bytes;
+    }
+    return true;
+}
+
+static bool npdisp_d3d_stateReadSurfaces(const UINT8** src, UINT32* remain, UINT32 count, UINT32 version)
+{
+    if (version >= 3U) {
+#if defined(SUPPORT_NPDISP_W2K)
+        if (!npdisp_d3d_stateReadMap(src, remain, count, &npdisp_d3d_surfaces)) return false;
+        for (std::map<UINT64, NPDISP_D3D_SURFACE>::const_iterator it = npdisp_d3d_surfaces.begin(); it != npdisp_d3d_surfaces.end(); ++it)
+            if (it->second.w2kMipSublevelCount >= NPDISP_D3D_MAX_MIP_LEVELS) return false;
+        return true;
+#else
+        return false;
+#endif
+    }
+    const UINT32 bytes = sizeof(UINT64) + sizeof(NPDISP_D3D_SURFACE_REV107);
+    if (count > *remain / bytes) return false;
+    for (UINT32 i = 0; i < count; ++i) {
+        UINT64 key;
+        NPDISP_D3D_SURFACE value = { 0 };
+        memcpy(&key, *src, sizeof(key));
+        memcpy(&value, *src + sizeof(key), sizeof(NPDISP_D3D_SURFACE_REV107));
+        (*src) += bytes;
+        *remain -= bytes;
+        npdisp_d3d_surfaces[key] = value;
+    }
+    return true;
+}
+
 UINT32 npdisp_d3d_stateSize(void)
 {
 	UINT64 size = sizeof(NPDISP_D3D_STATE_HEADER);
 	size += (UINT64)npdisp_d3d_contexts.size() * (sizeof(UINT32) + sizeof(NPDISP_D3D_CONTEXT));
 	size += (UINT64)npdisp_d3d_tnlContexts.size() * (sizeof(UINT32) + sizeof(NPDISP_D3D_TNL_CONTEXT));
 	size += (UINT64)npdisp_d3d_ddLocalNamespaces.size() * (sizeof(UINT32) + sizeof(UINT32));
-	size += (UINT64)npdisp_d3d_surfaces.size() * (sizeof(UINT64) + sizeof(NPDISP_D3D_SURFACE));
+	size += (UINT64)npdisp_d3d_surfaces.size() * (sizeof(UINT64) +
+		(npdisp_d3d_stateVersion() >= 3U ? sizeof(NPDISP_D3D_SURFACE) : sizeof(NPDISP_D3D_SURFACE_REV107)));
 	size += (UINT64)npdisp_d3d_surfaceSwapPending.size() * (sizeof(UINT32) + sizeof(UINT32));
 	size += (UINT64)npdisp_d3d_legacyTextures.size() * (sizeof(UINT32) + sizeof(NPDISP_D3D_LEGACY_TEXTURE));
 	size += (UINT64)npdisp_d3d_palettes.size() * (sizeof(UINT64) + sizeof(NPDISP_D3D_PALETTE));
@@ -3585,7 +3742,7 @@ bool npdisp_d3d_saveState(UINT8* dst, UINT32 size)
 	UINT8* out;
 	if (!dst || !required || size < required) return false;
 	header.magic = NPDISP_D3D_STATE_MAGIC;
-	header.version = NPDISP_D3D_STATE_VERSION;
+	header.version = npdisp_d3d_stateVersion();
 	header.nextContext = npdisp_d3d_nextContext;
 	header.nextDDLocalNamespace = npdisp_d3d_nextDDLocalNamespace;
 	header.nextLegacyTexture = npdisp_d3d_nextLegacyTexture;
@@ -3602,7 +3759,7 @@ bool npdisp_d3d_saveState(UINT8* dst, UINT32 size)
 	return npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_contexts) &&
 		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_tnlContexts) &&
 		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_ddLocalNamespaces) &&
-		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_surfaces) &&
+		npdisp_d3d_stateWriteSurfaces(&out, &remain, header.version) &&
 		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_surfaceSwapPending) &&
 		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_legacyTextures) &&
 		npdisp_d3d_stateWriteMap(&out, &remain, npdisp_d3d_palettes) &&
@@ -3617,14 +3774,14 @@ bool npdisp_d3d_loadState(const UINT8* src, UINT32 size)
 	npdisp_d3d_reset();
 	if (!src || size < sizeof(header)) return false;
 	memcpy(&header, src, sizeof(header));
-	if (header.magic != NPDISP_D3D_STATE_MAGIC || (header.version != 1U && header.version != NPDISP_D3D_STATE_VERSION) ||
+	if (header.magic != NPDISP_D3D_STATE_MAGIC || (header.version < 1U || header.version > NPDISP_D3D_STATE_VERSION) ||
 		!header.nextContext || !header.nextDDLocalNamespace || !header.nextLegacyTexture) return false;
 	in = src + sizeof(header);
 	remain = size - sizeof(header);
 	if (!npdisp_d3d_stateReadMap(&in, &remain, header.contextCount, &npdisp_d3d_contexts) ||
 		(header.version >= 2U && !npdisp_d3d_stateReadMap(&in, &remain, header.contextCount, &npdisp_d3d_tnlContexts)) ||
 		!npdisp_d3d_stateReadMap(&in, &remain, header.namespaceCount, &npdisp_d3d_ddLocalNamespaces) ||
-		!npdisp_d3d_stateReadMap(&in, &remain, header.surfaceCount, &npdisp_d3d_surfaces) ||
+		!npdisp_d3d_stateReadSurfaces(&in, &remain, header.surfaceCount, header.version) ||
 		!npdisp_d3d_stateReadMap(&in, &remain, header.swapCount, &npdisp_d3d_surfaceSwapPending) ||
 		!npdisp_d3d_stateReadMap(&in, &remain, header.legacyTextureCount, &npdisp_d3d_legacyTextures) ||
 		!npdisp_d3d_stateReadMap(&in, &remain, header.paletteCount, &npdisp_d3d_palettes) ||
@@ -3673,6 +3830,14 @@ void npdisp_d3d_destroySurface(UINT32 lpSurfaceAddr)
 	npdisp_d3d_flush();
 #if defined(SUPPORT_NPDISP_W2K)
 	npdisp_d3d_w2kDepthSurfaces.erase(lpSurfaceAddr);
+	for (std::map<UINT64, NPDISP_D3D_SURFACE>::iterator mip = npdisp_d3d_surfaces.begin(); mip != npdisp_d3d_surfaces.end(); ++mip) {
+		for (UINT32 i = 0; i < mip->second.w2kMipSublevelCount; ++i) {
+			if (mip->second.w2kMipSublevelKeys[i] == lpSurfaceAddr) {
+				mip->second.w2kMipSublevelCount = i;
+				break;
+			}
+		}
+	}
 #endif
 	std::map<UINT64, NPDISP_D3D_SURFACE>::iterator it = npdisp_d3d_surfaces.begin();
 	while (it != npdisp_d3d_surfaces.end()) {
@@ -4301,7 +4466,9 @@ static bool npdisp_d3d_dp2CommandRead(const NPDISP_D3DHAL_DRAWPRIMITIVES2DATA32*
 	end = (UINT64)offset + size;
 	if (end > data->dwCommandLength || !npdisp_d3d_add(data->dwCommandOffset, offset, &surfaceOffset)) return false;
 	if (data->dwFlags & NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS)
-		return npdisp_d3d_rawBufferRead(data->lpDDCommands, surfaceOffset, dst, size);
+		return npdisp_d3d_w2kLegacyBuffers ? npdisp_d3d_rawBufferRead(data->lpDDCommands, surfaceOffset, dst, size) :
+			npdisp_d3d_w2kBufferRead(data->lpDDCommands, surfaceOffset, dst, size,
+			(data->dwFlags & NPDISP_D3DHALDP2_W2K_COMMAND_VRAM) != 0);
 	return npdisp_d3d_lclBufferRead(data->lpDDCommands, surfaceOffset, dst, size);
 }
 
@@ -4701,7 +4868,6 @@ static void npdisp_d3d_tnlTextureVertex(const NPDISP_D3D_TNL_CACHE* cache, const
 	vertex->stageTexValid = 1U;
 }
 
-
 static bool npdisp_d3d_tnlTransformVertex(const NPDISP_D3D_CONTEXT* context, const NPDISP_D3D_TNL_CONTEXT* tnl,
 	const NPDISP_D3D_TNL_CACHE* cache, NPDISP_D3DTLVERTEX32* vertex, const NPDISP_D3DVECTOR32* normal, const float* blendWeights,
 	UINT32 weightCount, bool hasDiffuse, bool hasSpecular)
@@ -4828,7 +4994,9 @@ static bool npdisp_d3d_dp2VertexBufferRead(const NPDISP_D3DHAL_DRAWPRIMITIVES2DA
 {
 	if (!data || !dst || !size) return false;
 	if (data->dwFlags & NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS)
-		return npdisp_d3d_rawBufferRead(data->lpDDVertexOrVertices, offset, dst, size);
+		return npdisp_d3d_w2kLegacyBuffers ? npdisp_d3d_rawBufferRead(data->lpDDVertexOrVertices, offset, dst, size) :
+			npdisp_d3d_w2kBufferRead(data->lpDDVertexOrVertices, offset, dst, size,
+			(data->dwFlags & NPDISP_D3DHALDP2_W2K_VERTEX_VRAM) != 0);
 	return npdisp_d3d_lclBufferRead(data->lpDDVertexOrVertices, offset, dst, size);
 }
 
@@ -4904,7 +5072,10 @@ static bool npdisp_d3d_dp2VertexRead(const NPDISP_D3D_CONTEXT* context, const NP
 	byteOffset = (UINT64)data->dwVertexOffset + (UINT64)index * vertexSize;
 	if (byteOffset > 0xffffffffULL || byteOffset + readSize > 0x100000000ULL) return false;
 	offset = (UINT32)byteOffset;
-	if (data->dwFlags & NPDISP_D3DHALDP2_USERMEMVERTICES) {
+	if (data->dwFlags & NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS) {
+		if (!npdisp_d3d_dp2VertexBufferRead(data, offset, bytes, readSize)) return false;
+	}
+	else if (data->dwFlags & NPDISP_D3DHALDP2_USERMEMVERTICES) {
 		UINT32 addr;
 		if (!npdisp_d3d_add(data->lpDDVertexOrVertices, offset, &addr) ||
 			(UINT64)addr + readSize > 0x100000000ULL || !npdisp_d3d_read(bytes, addr, readSize)) return false;
@@ -4919,13 +5090,16 @@ static bool npdisp_d3d_dp2VerticesRead(const NPDISP_D3D_CONTEXT* context, const 
 	UINT64 end;
 	UINT32 readSize;
 	NPDISP_D3D_TNL_CACHE cache;
+
 	if (!context || !tnl || !data || !vertices || count > NPDISP_D3D_MAX_VERTICES) return false;
 	end = (UINT64)first + count;
 	if (end > data->dwVertexLength) return false;
 	if (count && !npdisp_d3d_dp2VertexSize(data->dwVertexType, &readSize)) return false;
 	vertices->resize(count);
 	if (count) npdisp_d3d_tnlBuildCache(context, tnl, data->dwVertexType, &cache);
+
 	for (UINT32 i = 0; i < count; ++i) if (!npdisp_d3d_dp2VertexRead(context, tnl, &cache, data, vertexSize, readSize, first + i, &(*vertices)[i])) return false;
+
 	return true;
 }
 
@@ -5288,7 +5462,7 @@ static bool npdisp_d3d_dp2SurfaceByHandle(NPDISP_D3D_CONTEXT* context, UINT32 ha
 	if (!context->ddLocalNamespace && !npdisp_d3d_bindDDLocalNamespaceByHandle(context, handle)) return false;
 	it = npdisp_d3d_surfaces.find(npdisp_d3d_surfaceKey(context->ddLocalNamespace, handle));
 	if (it == npdisp_d3d_surfaces.end()) {
-		if (npdisp_d3d_attachedSurfaceByHandle(context, handle, lpSurface)) return true;
+		if (!npdisp.w2kLfb && npdisp_d3d_attachedSurfaceByHandle(context, handle, lpSurface)) return true;
 		TRACEOUTD3D(("NPDISP11 D3D_DP2_SURFACE_MISS ns=%08x handle=%08x", context->ddLocalNamespace, handle));
 		return false;
 	}
@@ -5310,7 +5484,7 @@ static bool npdisp_d3d_dp2SetRenderTarget(NPDISP_D3D_CONTEXT* context, const NPD
 	it = npdisp_d3d_surfaces.find(npdisp_d3d_surfaceKey(context->ddLocalNamespace, setTarget->hRenderTarget));
 	if (it == npdisp_d3d_surfaces.end() || !it->second.targetSnapshot.valid) return false;
 	if (!it->second.targetSnapshot.systemMemory && !npdisp_d3d_targetFromSnapshot(&it->second.targetSnapshot, &target)) return false;
-	if (!lpDepth && npdisp_d3d_attachedSurfaceByCaps(lpTarget, NPDISP_DDSCAPS_ZBUFFER, &lpDepth))
+	if (!npdisp.w2kLfb && !lpDepth && npdisp_d3d_attachedSurfaceByCaps(lpTarget, NPDISP_DDSCAPS_ZBUFFER, &lpDepth))
 		TRACEOUTD3D(("NPDISP11 D3D_DP2_SETRENDERTARGET_ZATTACH rt=%08x z=%08x", lpTarget, lpDepth));
 	if (lpDepth && (!npdisp_d3d_depthTarget(lpDepth, &depthTarget) || depthTarget.width < it->second.targetSnapshot.width || depthTarget.height < it->second.targetSnapshot.height)) return false;
 	context->lpTarget = lpTarget;
@@ -5401,7 +5575,21 @@ static UINT32 npdisp_d3d_clear2(UINT32 lpDataAddr)
 	return NPDISP_DDHAL_DRIVER_HANDLED;
 }
 
-static bool npdisp_d3d_dp2TexBlt(NPDISP_D3D_CONTEXT* context, const NPDISP_D3DHAL_DP2TEXBLT32* blt)
+// Private continuation trailer following the Win2000 DP2 data.
+#define NPDISP_TEX_STAGE_MAGIC 0x31585354UL
+#define NPDISP_TEX_STAGE_REQUEST 1U
+#define NPDISP_TEX_STAGE_READY 2U
+#define NPDISP_TEX_STAGE_RETRY 0x8876ff01UL
+#define NPDISP_TEX_STAGE_MAX 16U
+struct NPDISP_TEX_STAGE_RANGE { UINT32 Base, Bytes, Copy; };
+struct NPDISP_TEX_STAGE {
+    UINT32 Magic, Status, Offset, Index, Count;
+    NPDISP_TEX_STAGE_RANGE Range[NPDISP_TEX_STAGE_MAX];
+};
+typedef char NPDISP_TEX_STAGE_SIZE_CHECK[(sizeof(NPDISP_TEX_STAGE) == 212) ? 1 : -1];
+
+static bool npdisp_d3d_dp2TexBlt(NPDISP_D3D_CONTEXT* context, const NPDISP_D3DHAL_DP2TEXBLT32* blt,
+    NPDISP_TEX_STAGE* stage, UINT32 commandOffset, UINT32 commandIndex)
 {
 	std::map<UINT64, NPDISP_D3D_SURFACE>::iterator srcIt;
 	std::map<UINT64, NPDISP_D3D_SURFACE>::iterator dstIt;
@@ -5446,8 +5634,8 @@ static bool npdisp_d3d_dp2TexBlt(NPDISP_D3D_CONTEXT* context, const NPDISP_D3DHA
 	if (!dstIt->second.textureSnapshot.valid && !npdisp_d3d_captureTextureSnapshot(dstIt->second.lpSurface, &dstIt->second.textureSnapshot)) return false;
 	memset(srcMip, 0, sizeof(srcMip));
 	memset(dstMip, 0, sizeof(dstMip));
-	if (!npdisp_d3d_captureMipSnapshots(srcIt->second.lpSurface, &srcIt->second.textureSnapshot, srcMip, &srcMipCount) ||
-		!npdisp_d3d_captureMipSnapshots(dstIt->second.lpSurface, &dstIt->second.textureSnapshot, dstMip, &dstMipCount)) return false;
+	if (!npdisp_d3d_captureMipSnapshots(srcIt->second.lpSurface, &srcIt->second.textureSnapshot, srcMip, &srcMipCount, &srcIt->second) ||
+		!npdisp_d3d_captureMipSnapshots(dstIt->second.lpSurface, &dstIt->second.textureSnapshot, dstMip, &dstMipCount, &dstIt->second)) return false;
 	levelCount = srcMipCount < dstMipCount ? srcMipCount : dstMipCount;
 	if (!levelCount || blt->rSrc.left < 0 || blt->rSrc.top < 0 || blt->rSrc.right <= blt->rSrc.left ||
 		blt->rSrc.bottom <= blt->rSrc.top || blt->x < 0 || blt->y < 0) return false;
@@ -5457,6 +5645,51 @@ static bool npdisp_d3d_dp2TexBlt(NPDISP_D3D_CONTEXT* context, const NPDISP_D3DHA
 	srcBottom = blt->rSrc.bottom;
 	dstX = blt->x;
 	dstY = blt->y;
+    if (stage && npdisp.w2kLfb) {
+        NPDISP_TEX_STAGE request = { 0 };
+        UINT64 total = 0;
+        bool systemToVideo = levelCount <= NPDISP_TEX_STAGE_MAX;
+        bool continuation = stage->Status == NPDISP_TEX_STAGE_READY &&
+            stage->Offset == commandOffset && stage->Index == commandIndex;
+        request.Magic = NPDISP_TEX_STAGE_MAGIC;
+        request.Status = NPDISP_TEX_STAGE_REQUEST;
+        request.Offset = commandOffset;
+        request.Index = commandIndex;
+        for (UINT32 level = 0; systemToVideo && level < levelCount; ++level) {
+            const NPDISP_D3D_TEXTURE_SNAPSHOT* src = &srcMip[level];
+            const NPDISP_D3D_TEXTURE_SNAPSHOT* dst = &dstMip[level];
+            if (!src->valid || !dst->valid || !src->systemMemory || dst->systemMemory ||
+                !src->linearBase || src->pitch <= 0 || !src->width || !src->height ||
+                (src->bpp != 8U && src->bpp != 16U && src->bpp != 32U)) {
+                systemToVideo = false;
+                break;
+            }
+            UINT64 rowBytes = (UINT64)src->width * (src->bpp >> 3);
+            UINT64 bytes = (UINT64)(src->height - 1U) * (UINT32)src->pitch + rowBytes;
+            if (rowBytes > (UINT32)src->pitch || !bytes || total + bytes > NPDISP_D3D_MAX_TEXTURE_BYTES ||
+                (UINT64)src->linearBase + bytes > 0x100000000ULL) return false;
+            total += bytes;
+            request.Range[level].Base = src->linearBase;
+            request.Range[level].Bytes = (UINT32)bytes;
+            ++request.Count;
+        }
+        if (systemToVideo && request.Count) {
+            if (!continuation) {
+                *stage = request;
+
+                return false; // No destination bytes have been written.
+            }
+            if (stage->Count != request.Count) return false;
+            for (UINT32 level = 0; level < request.Count; ++level) {
+                const NPDISP_TEX_STAGE_RANGE& r = stage->Range[level];
+                if (r.Base != request.Range[level].Base || r.Bytes != request.Range[level].Bytes ||
+                    !r.Copy || (UINT64)r.Copy + r.Bytes > 0x100000000ULL) return false;
+                // Modify local copies only; persistent surface metadata stays unchanged.
+                srcMip[level].linearBase = r.Copy;
+            }
+
+        } else if (continuation) return false;
+    }
 	for (UINT32 level = 0; level < levelCount; ++level) {
 		NPDISP_D3D_TEXTURE_SNAPSHOT* src = &srcMip[level];
 		NPDISP_D3D_TEXTURE_SNAPSHOT* dst = &dstMip[level];
@@ -5501,6 +5734,9 @@ static bool npdisp_d3d_dp2TexBlt(NPDISP_D3D_CONTEXT* context, const NPDISP_D3DHA
 static UINT32 npdisp_d3d_dp2Finish(UINT32 lpDataAddr, NPDISP_D3DHAL_DRAWPRIMITIVES2DATA32* data, UINT32 ddrval, UINT32 errorOffset)
 {
 	if (!data) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	if ((data->dwFlags & NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS) &&
+		npdisp_d3d_w2kBufferReadFailed && ddrval == NPDISP_D3DERR_COMMAND_UNPARSED)
+		ddrval = NPDISP_DDERR_CURRENTLYNOTAVAIL;
 	data->dwVertexSizeOrDdrval = ddrval;
 	data->dwErrorOffset = errorOffset;
 	{
@@ -5510,9 +5746,12 @@ static UINT32 npdisp_d3d_dp2Finish(UINT32 lpDataAddr, NPDISP_D3DHAL_DRAWPRIMITIV
 	return npdisp_d3d_write(data, lpDataAddr, sizeof(*data)) ? NPDISP_DDHAL_DRIVER_HANDLED : NPDISP_DDHAL_DRIVER_NOTHANDLED;
 }
 
-static UINT32 npdisp_d3d_drawPrimitives2(UINT32 lpDataAddr)
+static UINT32 npdisp_d3d_drawPrimitives2(UINT32 lpDataAddr, NPDISP_TEX_STAGE* stage = NULL, bool legacyW2k = false)
 {
 	NPDISP_D3DHAL_DRAWPRIMITIVES2DATA32 data = { 0 };
+	npdisp_d3d_w2kBufferReadFailed = false;
+	npdisp_d3d_w2kLegacyBuffers = legacyW2k;
+
 	InterlockedIncrement(&npdisp_d3d_profileDP2);
 	NPDISP_D3D_CONTEXT* context;
 	NPDISP_D3D_TNL_CONTEXT* tnl;
@@ -5521,12 +5760,18 @@ static UINT32 npdisp_d3d_drawPrimitives2(UINT32 lpDataAddr)
 	if (!npdisp_d3d_read(&data, lpDataAddr, sizeof(data)) || !(context = npdisp_d3d_getContext(data.dwhContext)) ||
 		!(tnl = npdisp_d3d_getTnlContext(data.dwhContext)) ||
 		data.dwCommandLength > NPDISP_D3D_MAX_DP2_COMMAND_BYTES) {
-		TRACEOUTD3D(("NPDISP11 D3D_DP2_REJECT stage=header data=%08x", lpDataAddr));
+#if defined(NPDISP_VERBOSE_TRACE)
+		static UINT32 rejects = 0;
+		++rejects;
+		if (rejects <= 16U || !(rejects & 0xfffU))
+			TRACEOUTD3D(("NPDISP11 D3D_DP2_REJECT stage=header data=%08x n=%u", lpDataAddr, rejects));
+#endif
 		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 	}
 	TRACEOUTD3D(("NPDISP11 D3D_DP2_IN ctx=%08x flags=%08x fvf=%08x vsize=%u cmd=%08x off=%u len=%u vert=%08x voff=%u vlen=%u", data.dwhContext, data.dwFlags, data.dwVertexType, data.dwVertexSizeOrDdrval, data.lpDDCommands, data.dwCommandOffset, data.dwCommandLength, data.lpDDVertexOrVertices, data.dwVertexOffset, data.dwVertexLength));
 	if (data.dwFlags & NPDISP_D3DHALDP2_EXECUTEBUFFER) TRACEOUTD3D(("NPDISP11 D3D_DP2_EXECUTEBUFFER ctx=%08x cmd=%08x vert=%08x rstates=%08x ns=%08x", data.dwhContext, data.lpDDCommands, data.lpDDVertexOrVertices, data.lpdwRStates, context->ddLocalNamespace));
-	if (data.dwFlags & ~(NPDISP_D3DHALDP2_VALID_FLAGS | NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS)) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset);
+	if (data.dwFlags & ~(NPDISP_D3DHALDP2_VALID_FLAGS | NPDISP_D3DHALDP2_W2K_DIRECTBUFFERS |
+		NPDISP_D3DHALDP2_W2K_COMMAND_VRAM | NPDISP_D3DHALDP2_W2K_VERTEX_VRAM)) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset);
 	if (!data.dwCommandLength) return npdisp_d3d_dp2Finish(lpDataAddr, &data, 0, 0);
 	if (!data.lpDDCommands || data.dwCommandOffset > 0xffffffffUL - data.dwCommandLength) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset);
 	vertexSize = data.dwVertexSizeOrDdrval;
@@ -5536,13 +5781,18 @@ static UINT32 npdisp_d3d_drawPrimitives2(UINT32 lpDataAddr)
 	while (cursor < data.dwCommandLength) {
 		NPDISP_D3DHAL_DP2COMMAND32 command = { 0 };
 		UINT32 commandStart = cursor;
+
 		if (!npdisp_d3d_dp2CommandRead(&data, cursor, &command, sizeof(command)) || !npdisp_d3d_add(cursor, sizeof(command), &cursor)) {
 			TRACEOUTD3D(("NPDISP11 D3D_DP2_REJECT stage=command-read offset=%u", data.dwCommandOffset + commandStart));
-			return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset + commandStart);
+			return npdisp_d3d_dp2Finish(lpDataAddr, &data, npdisp.w2kLfb ? NPDISP_DDERR_CURRENTLYNOTAVAIL : NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset + commandStart);
 		}
+
 		if (!commandStart) TRACEOUTD3D(("NPDISP11 D3D_DP2_FIRST ctx=%08x op=%u reserved=%u count=%u", data.dwhContext, command.bCommand, command.bReserved, command.wCount));
 		TRACEOUTD3D(("NPDISP11 D3D_DP2_CMD ctx=%08x offset=%u op=%u reserved=%u count=%u", data.dwhContext, data.dwCommandOffset + commandStart, command.bCommand, command.bReserved, command.wCount));
 
+        if (stage && stage->Status == NPDISP_TEX_STAGE_READY &&
+            (commandStart != 0 || stage->Offset != data.dwCommandOffset || command.bCommand != NPDISP_D3DDP2OP_TEXBLT))
+            return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_DDERR_CURRENTLYNOTAVAIL, data.dwCommandOffset + commandStart);
 		if ((data.dwFlags & NPDISP_D3DHALDP2_EXECUTEBUFFER) && command.bCommand == NPDISP_D3DOP_EXIT) {
 			TRACEOUTD3D(("NPDISP11 D3D_EXECBUF_EXIT ctx=%08x offset=%u", data.dwhContext, data.dwCommandOffset + commandStart));
 			return npdisp_d3d_dp2Finish(lpDataAddr, &data, 0, 0);
@@ -5846,9 +6096,22 @@ static UINT32 npdisp_d3d_drawPrimitives2(UINT32 lpDataAddr)
 		else if (command.bCommand == NPDISP_D3DDP2OP_TEXBLT) {
 			UINT64 bytes64 = (UINT64)command.wCount * sizeof(NPDISP_D3DHAL_DP2TEXBLT32);
 			if (!command.wCount || bytes64 > 0xffffffffULL || (UINT64)cursor + bytes64 > data.dwCommandLength) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset + commandStart);
-			for (UINT32 i = 0; i < command.wCount; ++i) {
+            UINT32 offset = data.dwCommandOffset + commandStart;
+            UINT32 start = 0;
+            if (stage && stage->Status == NPDISP_TEX_STAGE_READY && stage->Offset == offset) {
+                start = stage->Index;
+                if (start >= command.wCount) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_DDERR_CURRENTLYNOTAVAIL, offset);
+            }
+			for (UINT32 i = start; i < command.wCount; ++i) {
 				NPDISP_D3DHAL_DP2TEXBLT32 blt = { 0 };
-				if (!npdisp_d3d_dp2CommandRead(&data, cursor + i * (UINT32)sizeof(blt), &blt, sizeof(blt)) || !npdisp_d3d_dp2TexBlt(context, &blt)) return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, data.dwCommandOffset + commandStart);
+                if (!npdisp_d3d_dp2CommandRead(&data, cursor + i * (UINT32)sizeof(blt), &blt, sizeof(blt)))
+                    return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_D3DERR_COMMAND_UNPARSED, offset);
+                if (!npdisp_d3d_dp2TexBlt(context, &blt, stage, offset, i)) {
+                    if (stage && stage->Status == NPDISP_TEX_STAGE_REQUEST && stage->Offset == offset && stage->Index == i)
+                        return npdisp_d3d_dp2Finish(lpDataAddr, &data, NPDISP_TEX_STAGE_RETRY, offset);
+                    return npdisp_d3d_dp2Finish(lpDataAddr, &data, npdisp.w2kLfb ? NPDISP_DDERR_CURRENTLYNOTAVAIL : NPDISP_D3DERR_COMMAND_UNPARSED, offset);
+                }
+                if (stage) stage->Status = 0;
 			}
 			cursor += (UINT32)bytes64;
 		}
@@ -5932,6 +6195,7 @@ static bool npdisp_d3d_registerSurfaceEx(UINT32 ddLocalNamespace, UINT32 lpSurfa
 		!npdisp_d3d_read(&surfaceHandle, handleAddr, sizeof(surfaceHandle)) || !surfaceHandle) return false;
 
 	key = npdisp_d3d_surfaceKey(ddLocalNamespace, surfaceHandle);
+#if defined(NPDISP_VERBOSE_TRACE)
 	if (lcl.ddsCaps.dwCaps & 0x00800000UL) {
 		NPDISP_DDRAWI_DDRAWSURFACE_GBL_HEAD traceGbl = { 0 };
 		const bool haveGbl = lcl.lpGbl && npdisp_d3d_read(&traceGbl, lcl.lpGbl, sizeof(traceGbl));
@@ -5939,6 +6203,7 @@ static bool npdisp_d3d_registerSurfaceEx(UINT32 ddLocalNamespace, UINT32 lpSurfa
 			ddLocalNamespace, surfaceHandle, lpSurface, callbackFlags, lcl.lpGbl, haveGbl ? traceGbl.fpVidMem : 0,
 			haveGbl ? traceGbl.lPitch : 0, haveGbl ? traceGbl.wWidth : 0, haveGbl ? traceGbl.wHeight : 0));
 	}
+#endif
 	if ((lcl.ddsCaps.dwCaps & NPDISP_DDSCAPS_SYSTEMMEMORY) && lcl.lpGbl &&
 		npdisp_d3d_read(&gbl, lcl.lpGbl, sizeof(gbl)) && !gbl.fpVidMem) {
 		npdisp_d3d_surfaces.erase(key);
@@ -6114,7 +6379,6 @@ static UINT32 npdisp_d3d_destroyDDLocal(UINT32 lpDataAddr)
 	return NPDISP_DDHAL_DRIVER_HANDLED;
 }
 
-
 #if defined(SUPPORT_NPDISP_W2K)
 static bool npdisp_d3d_w2kSurfaceOffset(UINT32 fpVidMem, UINT64 bytes, UINT32* offset)
 {
@@ -6170,12 +6434,47 @@ static bool npdisp_d3d_w2kTextureSnapshot(const NPDISP_W2K_D3D_SURFACE* surface,
 	UINT32 bytesPerPixel = 2U;
 	UINT64 bytes;
 	UINT32 offset;
+	bool inferredBumpPixelFormat;
+	bool inferredRGBPixelFormat;
 
 	if (!surface || !snapshot || !surface->SurfaceKey || !(surface->Caps & NPDISP_DDSCAPS_TEXTURE) ||
 		!surface->Width || !surface->Height || surface->Pitch <= 0) return false;
 	memset(snapshot, 0, sizeof(*snapshot));
 
-	if (surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) {
+	/* Accept explicit supported bump formats even without HASPIXELFORMAT. */
+	inferredBumpPixelFormat = !(surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) &&
+		!(surface->PixelFlags & (NPDISP_DDPF_RGB | NPDISP_DDPF_FOURCC | NPDISP_DDPF_PALETTEINDEXED8)) &&
+		surface->RGBBitCount == 16U &&
+		(((surface->PixelFlags & (NPDISP_DDPF_BUMPDUDV | NPDISP_DDPF_BUMPLUMINANCE)) ==
+		  (NPDISP_DDPF_BUMPDUDV | NPDISP_DDPF_BUMPLUMINANCE) &&
+		  surface->RBitMask == 0x0000001fUL && surface->GBitMask == 0x000003e0UL &&
+		  surface->BBitMask == 0x0000fc00UL) ||
+		 ((surface->PixelFlags & (NPDISP_DDPF_BUMPDUDV | NPDISP_DDPF_BUMPLUMINANCE)) == NPDISP_DDPF_BUMPDUDV &&
+		  surface->RBitMask == 0x000000ffUL && surface->GBitMask == 0x0000ff00UL &&
+		  !surface->BBitMask));
+
+	/* Accept explicit supported RGB formats even without HASPIXELFORMAT.
+	 * Surfaces without a recognized format use RGB565. */
+	inferredRGBPixelFormat = !(surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) &&
+		((surface->PixelFlags == NPDISP_DDPF_RGB &&
+		  ((surface->RGBBitCount == 16U && surface->RBitMask == 0x0000f800UL &&
+		    surface->GBitMask == 0x000007e0UL && surface->BBitMask == 0x0000001fUL &&
+		    !surface->RGBAlphaBitMask) ||
+		   (surface->RGBBitCount == 32U && surface->RBitMask == 0x00ff0000UL &&
+		    surface->GBitMask == 0x0000ff00UL && surface->BBitMask == 0x000000ffUL &&
+		    !surface->RGBAlphaBitMask))) ||
+		 (surface->PixelFlags == (NPDISP_DDPF_RGB | NPDISP_DDPF_ALPHAPIXELS) &&
+		  ((surface->RGBBitCount == 16U && surface->RBitMask == 0x00007c00UL &&
+		    surface->GBitMask == 0x000003e0UL && surface->BBitMask == 0x0000001fUL &&
+		    surface->RGBAlphaBitMask == 0x00008000UL) ||
+		   (surface->RGBBitCount == 16U && surface->RBitMask == 0x00000f00UL &&
+		    surface->GBitMask == 0x000000f0UL && surface->BBitMask == 0x0000000fUL &&
+		    surface->RGBAlphaBitMask == 0x0000f000UL) ||
+		   (surface->RGBBitCount == 32U && surface->RBitMask == 0x00ff0000UL &&
+		    surface->GBitMask == 0x0000ff00UL && surface->BBitMask == 0x000000ffUL &&
+		    surface->RGBAlphaBitMask == 0xff000000UL))));
+
+	if ((surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) || (inferredBumpPixelFormat || inferredRGBPixelFormat)) {
 		if (surface->PixelFlags & NPDISP_DDPF_FOURCC) return false;
 		if (surface->PixelFlags & NPDISP_DDPF_PALETTEINDEXED8) {
 			if (surface->RGBBitCount != 8U) return false;
@@ -6238,7 +6537,7 @@ static bool npdisp_d3d_w2kTextureSnapshot(const NPDISP_W2K_D3D_SURFACE* surface,
 	snapshot->height = surface->Height;
 	snapshot->pitch = surface->Pitch;
 	snapshot->bpp = bytesPerPixel * 8U;
-	if (surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) {
+	if ((surface->Flags & NPDISP_DDRAWISURF_HASPIXELFORMAT) || (inferredBumpPixelFormat || inferredRGBPixelFormat)) {
 		if (surface->PixelFlags & (NPDISP_DDPF_BUMPDUDV | NPDISP_DDPF_BUMPLUMINANCE)) {
 			snapshot->duMask = surface->RBitMask;
 			snapshot->dvMask = surface->GBitMask;
@@ -6257,6 +6556,16 @@ static bool npdisp_d3d_w2kTextureSnapshot(const NPDISP_W2K_D3D_SURFACE* surface,
 		snapshot->bMask = 0x0000001fUL;
 	}
 	snapshot->valid = true;
+	if (inferredBumpPixelFormat) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_TEXFMT_INFER_BUMP surf=%08x flags=%08x pf=%08x format=%u mask=%08x/%08x/%08x",
+			surface->SurfaceKey, surface->Flags, surface->PixelFlags, snapshot->format,
+			snapshot->duMask, snapshot->dvMask, snapshot->luminanceMask));
+	}
+	if (inferredRGBPixelFormat) {
+		TRACEOUTD3D(("NPDISP11 D3D_W2K_TEXFMT_INFER_RGB surf=%08x flags=%08x pf=%08x format=%u mask=%08x/%08x/%08x/%08x",
+			surface->SurfaceKey, surface->Flags, surface->PixelFlags, snapshot->format,
+			snapshot->rMask, snapshot->gMask, snapshot->bMask, snapshot->aMask));
+	}
 	return true;
 }
 
@@ -6305,6 +6614,32 @@ static bool npdisp_d3d_w2kDepthSnapshot(const NPDISP_W2K_D3D_SURFACE* surface, N
 	return true;
 }
 
+static bool npdisp_d3d_w2kMipCompatible(const NPDISP_D3D_TEXTURE_SNAPSHOT* top,
+	const NPDISP_D3D_TEXTURE_SNAPSHOT* prev, const NPDISP_D3D_TEXTURE_SNAPSHOT* next)
+{
+	return next->valid && (prev->width > 1U || prev->height > 1U) &&
+		next->width == (prev->width > 1U ? prev->width >> 1 : 1U) &&
+		next->height == (prev->height > 1U ? prev->height >> 1 : 1U) &&
+		next->bpp == top->bpp && next->format == top->format &&
+		next->rMask == top->rMask && next->gMask == top->gMask && next->bMask == top->bMask && next->aMask == top->aMask &&
+		next->duMask == top->duMask && next->dvMask == top->dvMask && next->luminanceMask == top->luminanceMask;
+}
+
+static void npdisp_d3d_w2kUpdateMipReferences(UINT32 ns, UINT32 key, const NPDISP_D3D_TEXTURE_SNAPSHOT* snapshot)
+{
+	for (std::map<UINT64, NPDISP_D3D_SURFACE>::iterator it = npdisp_d3d_surfaces.begin(); it != npdisp_d3d_surfaces.end(); ++it) {
+		NPDISP_D3D_SURFACE& surf = it->second;
+		if (surf.ddLocalNamespace != ns) continue;
+		for (UINT32 i = 0; i < surf.w2kMipSublevelCount; ++i) {
+			if (surf.w2kMipSublevelKeys[i] != key) continue;
+			const NPDISP_D3D_TEXTURE_SNAPSHOT* prev = i ? &surf.w2kMipSublevels[i - 1] : &surf.textureSnapshot;
+			if (!snapshot || !npdisp_d3d_w2kMipCompatible(&surf.textureSnapshot, prev, snapshot)) surf.w2kMipSublevelCount = i;
+			else surf.w2kMipSublevels[i] = *snapshot;
+			break;
+		}
+	}
+}
+
 static bool npdisp_d3d_w2kRegisterSurface(UINT32 ddLocalNamespace, const NPDISP_W2K_D3D_SURFACE* source)
 {
 	NPDISP_D3D_SURFACE surface = { 0 };
@@ -6339,6 +6674,7 @@ static bool npdisp_d3d_w2kRegisterSurface(UINT32 ddLocalNamespace, const NPDISP_
 			}
 		}
 	}
+	npdisp_d3d_w2kUpdateMipReferences(ddLocalNamespace, source->SurfaceKey, &surface.textureSnapshot);
 	npdisp_d3d_surfaces[key] = surface;
 	return true;
 }
@@ -6513,15 +6849,30 @@ static UINT32 npdisp_d3d_w2kSetRenderTarget(UINT32 lpDataAddr)
 	return npdisp_d3d_write(&data, lpDataAddr, sizeof(data)) ? NPDISP_DDHAL_DRIVER_HANDLED : NPDISP_DDHAL_DRIVER_NOTHANDLED;
 }
 
-static UINT32 npdisp_d3d_w2kCreateSurfaceEx(UINT32 lpDataAddr)
+static UINT32 npdisp_d3d_w2kCreateSurfaceEx(UINT32 lpDataAddr, UINT32 dataSize)
 {
 	NPDISP_W2K_D3D_CREATE_SURFACE_EX data = { 0 };
 	UINT32 ddLocalNamespace;
-	if (!npdisp_d3d_read(&data, lpDataAddr, sizeof(data)) || !data.DDLocalKey || !data.Surface.SurfaceKey) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	if (!npdisp_d3d_read(&data, lpDataAddr, dataSize) || !data.DDLocalKey || !data.Surface.SurfaceKey) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 	ddLocalNamespace = npdisp_d3d_getDDLocalNamespace(data.DDLocalKey, true);
 	data.Result = (ddLocalNamespace && data.Surface.SurfaceHandle && npdisp_d3d_w2kRegisterSurface(ddLocalNamespace, &data.Surface)) ? 0 : NPDISP_DDERR_CURRENTLYNOTAVAIL;
+	if (data.Result == 0 && (data.Surface.Caps & NPDISP_DDSCAPS_MIPMAP)) {
+		NPDISP_D3D_SURFACE& surf = npdisp_d3d_surfaces[npdisp_d3d_surfaceKey(ddLocalNamespace, data.Surface.SurfaceHandle)];
+		if (surf.textureSnapshot.valid) {
+			for (UINT32 i = 0; i < data.MipSublevelCount && i < NPDISP_W2K_D3D_MAX_MIP_SUBLEVELS; ++i) {
+				NPDISP_D3D_TEXTURE_SNAPSHOT snapshot = { 0 };
+				const NPDISP_D3D_TEXTURE_SNAPSHOT* prev = i ? &surf.w2kMipSublevels[i - 1] : &surf.textureSnapshot;
+				if (!npdisp_d3d_w2kTextureSnapshot(&data.MipSublevels[i], &snapshot) ||
+					!npdisp_d3d_w2kMipCompatible(&surf.textureSnapshot, prev, &snapshot)) break;
+				surf.w2kMipSublevels[i] = snapshot;
+				surf.w2kMipSublevelKeys[i] = data.MipSublevels[i].SurfaceKey;
+				surf.w2kMipSublevelCount = i + 1;
+			}
+
+		}
+	}
 	TRACEOUTD3D(("NPDISP11 D3D_W2K_SURFACEEX ns=%08x handle=%08x surf=%08x caps=%08x flags=%08x result=%08x", ddLocalNamespace, data.Surface.SurfaceHandle, data.Surface.SurfaceKey, data.Surface.Caps, data.Flags, data.Result));
-	return npdisp_d3d_write(&data, lpDataAddr, sizeof(data)) ? NPDISP_DDHAL_DRIVER_HANDLED : NPDISP_DDHAL_DRIVER_NOTHANDLED;
+	return npdisp_d3d_write(&data, lpDataAddr, dataSize) ? NPDISP_DDHAL_DRIVER_HANDLED : NPDISP_DDHAL_DRIVER_NOTHANDLED;
 }
 
 static UINT32 npdisp_d3d_w2kDestroyDDLocal(UINT32 lpDataAddr)
@@ -6571,38 +6922,11 @@ static UINT32 npdisp_d3d_w2kDestroyDDLocal(UINT32 lpDataAddr)
 	return npdisp_d3d_write(&data, lpDataAddr, sizeof(data)) ? NPDISP_DDHAL_DRIVER_HANDLED : NPDISP_DDHAL_DRIVER_NOTHANDLED;
 }
 
-static UINT32 npdisp_d3d_w2kTrace(UINT32 lpDataAddr)
-{
-	NPDISP_W2K_D3D_TRACE trace = { 0 };
-	if (!npdisp_d3d_read(&trace, lpDataAddr, sizeof(trace))) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
-	if (trace.Event == NPDISP_W2K_D3D_TRACE_SETUP) {
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_GUEST_SETUP version=%08x size=%u hwsize=%u extsize=%u setup=%08x callbacks=%08x getinfo=%08x formats=%u",
-			trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[4], trace.Values[5], trace.Values[6], trace.Values[7]));
-	}
-	else if (trace.Event == NPDISP_W2K_D3D_TRACE_INIT) {
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_GUEST_INIT halflags=%08x global=%08x callbacks=%08x getinfo=%08x globalsize=%u callbacksize=%u formats=%u cb3flags=%08x basecb=%08x hwflags=%08x",
-			trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[4], trace.Values[5], trace.Values[6], trace.Values[7], trace.Values[8], trace.Values[9]));
-	}
-	else if (trace.Event == NPDISP_W2K_D3D_TRACE_GETDRIVERINFO) {
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_GETINFO tag=%u guid=%08x-%08x-%08x-%08x size=%u data=%08x expected=%u actual=%u result=%08x",
-			trace.Values[7], trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[8], trace.Values[9],
-			trace.Values[4], trace.Values[5], trace.Values[6]));
-		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
-	}
-	else if (trace.Event == NPDISP_W2K_D3D_TRACE_CONTEXTCREATE) {
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_GUEST_CTX stage=%u arg=%08x key=%08x target=%08x depth=%08x pid=%08x hint=%08x ret=%08x handle=%08x result=%08x",
-			trace.Values[0], trace.Values[1], trace.Values[2], trace.Values[3], trace.Values[4], trace.Values[5],
-			trace.Values[6], trace.Values[7], trace.Values[8], trace.Values[9]));
-	}
-	else {
-		TRACEOUTD3D(("NPDISP11 D3D_W2K_TRACE_UNKNOWN event=%08x", trace.Event));
-	}
-	return NPDISP_DDHAL_DRIVER_HANDLED;
-}
-
 UINT32 npdisp_d3d_dispatchW2k(UINT32 callbackId, UINT32 lpDataAddr, UINT32 dataSize)
 {
 	switch (callbackId) {
+	case 0x03ffUL: // rev107 diagnostic callback, intentionally ignored.
+		return NPDISP_DDHAL_DRIVER_HANDLED;
 	case NPDISP_W2K_D3D_DISPATCH_CONTEXTCREATE:
 		if (dataSize < sizeof(NPDISP_W2K_D3D_CONTEXT_CREATE)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_w2kContextCreate(lpDataAddr);
@@ -6615,9 +6939,21 @@ UINT32 npdisp_d3d_dispatchW2k(UINT32 callbackId, UINT32 lpDataAddr, UINT32 dataS
 	case NPDISP_W2K_D3D_DISPATCH_SCENECAPTURE:
 		if (dataSize < sizeof(NPDISP_W2K_D3D_SCENE_CAPTURE)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_w2kSceneCapture(lpDataAddr);
-	case NPDISP_W2K_D3D_DISPATCH_DRAWPRIMITIVES2:
+	case NPDISP_W2K_D3D_DISPATCH_DRAWPRIMITIVES2: {
 		if (dataSize < sizeof(NPDISP_D3DHAL_DRAWPRIMITIVES2DATA32)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
-		return npdisp_d3d_drawPrimitives2(lpDataAddr);
+
+        NPDISP_TEX_STAGE stage = { 0 };
+        UINT32 stageAddr;
+        const UINT32 prefix = sizeof(NPDISP_D3DHAL_DRAWPRIMITIVES2DATA32);
+        if (dataSize == prefix) return npdisp_d3d_drawPrimitives2(lpDataAddr, NULL, true);
+        if (dataSize != prefix + sizeof(stage) || !npdisp_d3d_add(lpDataAddr, prefix, &stageAddr) ||
+            !npdisp_d3d_read(&stage, stageAddr, sizeof(stage)) || stage.Magic != NPDISP_TEX_STAGE_MAGIC ||
+            (stage.Status != 0 && stage.Status != NPDISP_TEX_STAGE_READY)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+        UINT32 result = npdisp_d3d_drawPrimitives2(lpDataAddr, &stage);
+        if (stage.Status == NPDISP_TEX_STAGE_REQUEST && !npdisp_d3d_write(&stage, stageAddr, sizeof(stage)))
+            return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+        return result;
+    }
 	case NPDISP_W2K_D3D_DISPATCH_VALIDATETEXTURESTAGE:
 		if (dataSize < sizeof(NPDISP_D3DHAL_VALIDATETEXTURESTAGESTATEDATA32)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_validateTextureStageState(lpDataAddr);
@@ -6625,17 +6961,14 @@ UINT32 npdisp_d3d_dispatchW2k(UINT32 callbackId, UINT32 lpDataAddr, UINT32 dataS
 		if (dataSize < sizeof(NPDISP_W2K_D3D_SET_RENDERTARGET)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_w2kSetRenderTarget(lpDataAddr);
 	case NPDISP_W2K_D3D_DISPATCH_CREATESURFACEEX:
-		if (dataSize < sizeof(NPDISP_W2K_D3D_CREATE_SURFACE_EX)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
-		return npdisp_d3d_w2kCreateSurfaceEx(lpDataAddr);
+		if (dataSize != 88U && dataSize != sizeof(NPDISP_W2K_D3D_CREATE_SURFACE_EX)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
+		return npdisp_d3d_w2kCreateSurfaceEx(lpDataAddr, dataSize);
 	case NPDISP_W2K_D3D_DISPATCH_GETDRIVERSTATE:
 		if (dataSize < sizeof(NPDISP_DD_GETDRIVERSTATEDATA32)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_getDriverState(lpDataAddr);
 	case NPDISP_W2K_D3D_DISPATCH_DESTROYDDLOCAL:
 		if (dataSize < sizeof(NPDISP_W2K_D3D_DESTROY_DDLOCAL)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 		return npdisp_d3d_w2kDestroyDDLocal(lpDataAddr);
-	case NPDISP_W2K_D3D_DISPATCH_TRACE:
-		if (dataSize < sizeof(NPDISP_W2K_D3D_TRACE)) return NPDISP_DDHAL_DRIVER_NOTHANDLED;
-		return npdisp_d3d_w2kTrace(lpDataAddr);
 	default:
 		return NPDISP_DDHAL_DRIVER_NOTHANDLED;
 	}

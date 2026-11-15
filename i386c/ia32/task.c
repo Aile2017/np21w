@@ -32,6 +32,29 @@
 #define	TSS_32_SIZE	104
 #define	TSS_32_LIMIT	(TSS_32_SIZE - 1)
 
+#if defined(SUPPORT_IA32_HAXM) || defined(SUPPORT_IA32_WHPX)
+/* A hardware register snapshot invalidates both I/O bitmap cache fields.
+ * Only resolve the TSS I/O map base on an actual software I/O/VME path,
+ * where architectural page faults can be delivered normally. */
+void CPUCALL
+cpu_refresh_io_bitmap_after_sync(void)
+{
+	UINT16 iobase;
+
+	if (CPU_STAT_IOADDR != 0 || CPU_STAT_IOLIMIT != 0)
+		return;
+	if (!CPU_STAT_PM || CPU_TR_DESC.type != CPU_SYSDESC_TYPE_TSS_BUSY_32 ||
+	    CPU_TR_LIMIT < TSS_32_LIMIT)
+		return;
+
+	iobase = cpu_kmemoryread_w(CPU_TR_BASE + 102);
+	if (iobase < CPU_TR_LIMIT) {
+		CPU_STAT_IOADDR = CPU_TR_BASE + iobase;
+		CPU_STAT_IOLIMIT = (UINT16)(CPU_TR_LIMIT - iobase);
+	}
+}
+#endif
+
 static void CPUCALL
 set_task_busy(UINT16 selector)
 {

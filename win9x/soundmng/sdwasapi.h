@@ -11,6 +11,7 @@
 #include "sdbase.h"
 #include "misc\threadbase.h"
 
+class CSoundDeviceDSound3;
 struct IMMDeviceEnumerator;
 struct IMMNotificationClient;
 struct IMMDevice;
@@ -53,12 +54,19 @@ public:
 	virtual bool PlayStream();
 	virtual void StopStream();
 	virtual void SetMasterVolume(int nVolume);
+	virtual bool LoadPCM(UINT nNum, LPCTSTR lpFilename = NULL);
+	virtual bool ReloadPCM(UINT nNum);
+	virtual void SetPCMVolume(UINT nNum, int nVolume);
+	virtual bool PlayPCM(UINT nNum, BOOL bLoop);
+	virtual void StopPCM(UINT nNum);
+	virtual void StopAllPCM();
 
 protected:
 	virtual bool Task();
 
 private:
 	static std::vector<WasapiDevice> sm_devices;	//!< デバイス リスト
+	CSoundDeviceDSound3* m_pPCMDevice;	//!< DirectSound effects in shared mode only
 	bool m_bShared;						//!< 共有モード
 	bool m_bDefaultDevice;				//!< 既定の出力デバイスを使用
 	HWND m_hWnd;
@@ -79,6 +87,7 @@ private:
 	UINT32 m_nSharedOffset;					//!< 次に出力するフレーム位置
 	HANDLE m_hEvents[2];						//!< イベント
 	bool RefreshEndpoint();
+	void OpenPCMDevice();
 	void QueueReopen();
 	void ResetStream();
 	void FillStream();

@@ -115,23 +115,55 @@ static UINT pcm_dec(GETSND snd, UINT8 *dst) {
 }
 #endif
 
+/* Convert little-endian 24/32-bit integer PCM to signed 16-bit PCM. */
+static UINT pcm_wide_dec(GETSND snd, void *dst) {
+
+	UINT size, samples, i, bytes;
+	UINT8 *src;
+	SINT16 *out;
+
+	bytes = (UINT)(INTPTR)snd->snd;
+	size = min(snd->blocksize, snd->datsize);
+	samples = size / (bytes * snd->channels);
+	size = samples * bytes * snd->channels;
+	src = snd->datptr;
+	out = (SINT16 *)dst;
+	for (i = 0; i < samples * snd->channels; i++) {
+		*out++ = (SINT16)LOADINTELWORD(src + bytes - 2);
+		src += bytes;
+	}
+	snd->datptr += size;
+	snd->datsize -= size;
+	return(samples);
+}
+
 static const UINT8 abits[4] = {0, 1, 0, 2};
 
 static BRESULT pcm_open(GETSND snd) {
 
-	UINT	align;
+	UINT align;
+	UINT bytes;
 
-	if ((snd->bit != 8) && (snd->bit != 16)) {
+	if ((snd->bit != 8) && (snd->bit != 16) &&
+		(snd->bit != 24) && (snd->bit != 32)) {
 		goto pcmopn_err;
 	}
-	align = snd->channels * (snd->bit >> 3);
+	bytes = snd->bit >> 3;
+	align = snd->channels * bytes;
 	if (snd->blocksize != align) {
 		goto pcmopn_err;
 	}
-	snd->blocksamples = 0x800;					// 適当に。
+	snd->blocksamples = 0x800;
 	snd->blocksize *= snd->blocksamples;
-	snd->snd = (void *)(INTPTR)abits[align - 1];
-	snd->dec = (GSDEC)pcm_dec;
+	if (bytes > 2) {
+		snd->snd = (void *)(INTPTR)bytes;
+		snd->bit = 16;
+		snd->dec = pcm_wide_dec;
+	}
+	else {
+		snd->snd = (void *)(INTPTR)abits[align - 1];
+		snd->dec = (GSDEC)pcm_dec;
+	}
 	return(SUCCESS);
 
 pcmopn_err:
@@ -446,6 +478,30 @@ extern BOOL __mp3_open(GETSND snd, UINT8 *ptr, UINT size);
 
 // ----
 
+/* RIFF chunks are word-aligned. Some older WAV writers omit the pad. */
+static BOOL wave_finddata(UINT8 *ptr, UINT size, UINT pos, BOOL padded,
+											UINT *dataPos, UINT *dataSize) {
+	UINT len;
+	WAVE_HEADER *head;
+	while (pos <= size && size - pos >= sizeof(WAVE_HEADER)) {
+		head = (WAVE_HEADER *)(ptr + pos);
+		pos += sizeof(WAVE_HEADER);
+		len = LOADINTELDWORD(head->size);
+		if (!memcmp(head->head, chunk_data, 4)) {
+			*dataPos = pos;
+			*dataSize = min(len, size - pos);
+			return TRUE;
+		}
+		if (len > size - pos) return FALSE;
+		pos += len;
+		if (padded && (len & 1)) {
+			if (pos == size) return FALSE;
+			pos++;
+		}
+	}
+	return FALSE;
+}
+
 BRESULT getwave_open(GETSND snd, UINT8 *ptr, UINT size) {
 
 	RIFF_HEADER		*riff;
@@ -490,11 +546,11 @@ BRESULT getwave_open(GETSND snd, UINT8 *ptr, UINT size) {
 
 		// フォーマットチェック
 		info = (WAVE_INFOS *)(ptr + pos);
-		pos += headsize;
-		if (size < pos) {
+		if (headsize > size - pos) {
 			TRACEOUT(("wav: error fmt data"));
 			goto gwopn_err;
 		}
+		pos += headsize;
 		format = LOADINTELWORD(info->format);
 		snd->channels = LOADINTELWORD(info->channel);
 		snd->samplingrate = LOADINTELDWORD(info->rate);
@@ -516,22 +572,14 @@ BRESULT getwave_open(GETSND snd, UINT8 *ptr, UINT size) {
 	}
 
 	// dataまで移動。
-	while(1) {
-		head = (WAVE_HEADER *)(ptr + pos);
-		pos += sizeof(WAVE_HEADER);
-		if (size < pos) {
-			TRACEOUT(("wav: error data header"));
-			goto gwopn_err;
-		}
-		if (!memcmp(head->head, chunk_data, 4)) {
-			break;
-		}
-		pos += LOADINTELDWORD(head->size);
+	if (!((!(headsize & 1) || pos < size) &&
+		wave_finddata(ptr, size, pos + (headsize & 1), TRUE, &pos, &datasize)) &&
+		!wave_finddata(ptr, size, pos, FALSE, &pos, &datasize)) {
+		TRACEOUT(("wav: error data header"));
+		goto gwopn_err;
 	}
 	ptr += pos;
-	size -= pos;
-	datasize = LOADINTELDWORD(head->size);
-	size = min(size, datasize);
+	size = datasize;
 
 	switch(format) {
 		case 0x01:				// PCM

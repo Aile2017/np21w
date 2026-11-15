@@ -5,6 +5,7 @@
 
 #include "compiler.h"
 #include "sdwasapi.h"
+#include "sddsound3.h"
 #include <MMDeviceAPI.h>
 #include <AudioClient.h>
 #include <AudioPolicy.h>
@@ -230,7 +231,8 @@ void CSoundDeviceWasapi::EnumerateDevices(std::vector<LPCTSTR>& devices)
  * コンストラクタ
  */
 CSoundDeviceWasapi::CSoundDeviceWasapi(bool bShared)
-	: m_bShared(bShared)
+	: m_pPCMDevice(NULL)
+	, m_bShared(bShared)
 	, m_bDefaultDevice(true)
 	, m_hWnd(NULL)
 	, m_nMixSamplingRate(0)
@@ -301,6 +303,8 @@ bool CSoundDeviceWasapi::Open(LPCTSTR lpDevice, HWND hWnd)
 
 bool CSoundDeviceWasapi::RefreshEndpoint()
 {
+	delete m_pPCMDevice;
+	m_pPCMDevice = NULL;
 	if (m_pDevice != NULL)
 	{
 		m_pDevice->Release();
@@ -337,8 +341,42 @@ bool CSoundDeviceWasapi::RefreshEndpoint()
 			m_pDevice = NULL;
 			return false;
 		}
+		OpenPCMDevice();
 	}
 	return true;
+}
+
+// Reuse ordinary DirectSound device selection for operation sounds.
+void CSoundDeviceWasapi::OpenPCMDevice()
+{
+	LPCTSTR lpDevice = NULL;
+	if (!m_bDefaultDevice)
+	{
+		for (std::vector<WasapiDevice>::const_iterator it = sm_devices.begin(); it != sm_devices.end(); ++it)
+		{
+			if (m_deviceId == it->id)
+			{
+				lpDevice = it->szDevice;
+				break;
+			}
+		}
+		// Do not silently route an explicitly selected device to the default output.
+		if (lpDevice == NULL || lpDevice[0] == 0)
+		{
+			return;
+		}
+	}
+
+	CSoundDeviceDSound3* device = new CSoundDeviceDSound3;
+	if (device->Open(lpDevice, m_hWnd))
+	{
+		device->SetMasterVolume(m_mastervolume);
+		m_pPCMDevice = device;
+	}
+	else
+	{
+		delete device;
+	}
 }
 
 bool CSoundDeviceWasapi::Reopen()
@@ -363,6 +401,8 @@ UINT CSoundDeviceWasapi::GetSamplingRate(UINT nRequestedRate) const
 void CSoundDeviceWasapi::Close()
 {
 	DestroyStream();
+	delete m_pPCMDevice;
+	m_pPCMDevice = NULL;
 	if (m_pEnumerator != NULL && m_pDeviceNotification != NULL)
 	{
 		m_pEnumerator->UnregisterEndpointNotificationCallback(m_pDeviceNotification);
@@ -643,11 +683,45 @@ void CSoundDeviceWasapi::StopStream()
  */
 void CSoundDeviceWasapi::SetMasterVolume(int nVolume)
 {
+	if (m_pPCMDevice && m_mastervolume != nVolume)
+	{
+		m_pPCMDevice->SetMasterVolume(nVolume);
+	}
 	m_mastervolume = nVolume;
 	if (m_pAudioClient)
 	{
 		// TODO: マスタボリューム設定
 	}
+}
+
+bool CSoundDeviceWasapi::LoadPCM(UINT nNum, LPCTSTR lpFilename)
+{
+	return m_pPCMDevice && m_pPCMDevice->LoadPCM(nNum, lpFilename);
+}
+
+bool CSoundDeviceWasapi::ReloadPCM(UINT nNum)
+{
+	return m_pPCMDevice && m_pPCMDevice->ReloadPCM(nNum);
+}
+
+void CSoundDeviceWasapi::SetPCMVolume(UINT nNum, int nVolume)
+{
+	if (m_pPCMDevice) m_pPCMDevice->SetPCMVolume(nNum, nVolume);
+}
+
+bool CSoundDeviceWasapi::PlayPCM(UINT nNum, BOOL bLoop)
+{
+	return m_pPCMDevice && m_pPCMDevice->PlayPCM(nNum, bLoop);
+}
+
+void CSoundDeviceWasapi::StopPCM(UINT nNum)
+{
+	if (m_pPCMDevice) m_pPCMDevice->StopPCM(nNum);
+}
+
+void CSoundDeviceWasapi::StopAllPCM()
+{
+	if (m_pPCMDevice) m_pPCMDevice->StopAllPCM();
 }
 
 /**

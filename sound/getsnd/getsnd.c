@@ -43,6 +43,7 @@ GETSND getsnd_create(void *datptr, UINT datsize) {
 	*ret = snd;
 	if (getsnd_setmixproc(ret, snd.samplingrate, snd.channels) != SUCCESS) {
 		TRACEOUT(("err"));
+		_MFREE(ret);
 		goto gscre_err1;
 	}
 	return(ret);
@@ -83,10 +84,12 @@ UINT getsnd_getpcmbyleng(GETSND snd, void *pcm, UINT leng) {
 	pcmp = (UINT8 *)pcm;
 	pcmterm = pcmp + leng;
 	while(pcmp < pcmterm) {
-		if (snd->remain != 0) {
+		if (snd->remain != 0 ||
+			(snd->mrate > snd->mixbase && snd->rem >= snd->mixbase)) {
 			pcmp = (UINT8 *)(*snd->cnv)(snd, pcmp, pcmterm);
 		}
-		if (snd->remain == 0) {
+		if (snd->remain == 0 &&
+			!(snd->mrate > snd->mixbase && snd->rem >= snd->mixbase)) {
 			snd->buf = snd->buffer;
 			snd->remain = (*snd->dec)(snd, snd->buffer);
 			if (snd->remain == 0) {

@@ -17,6 +17,7 @@
 #include "externalopna.h"
 #if defined(SUPPORT_FMGEN)
 #include "fmgen/fmgen_fmgwrap.h"
+#include "sound/firresample.h"
 #endif	/* SUPPORT_FMGEN */
 
 static void writeRegister(POPNA opna, UINT nAddress, REG8 cData);
@@ -51,34 +52,9 @@ public:
 		if (!m_enabled)
 			return;
 
-		const double pi = 3.14159265358979323846;
-		const double outputRatio = (double)outputRate / inputRate;
-		const double cutoff = 0.45 * ((outputRatio < 1.0) ? outputRatio : 1.0);
-		const int center = m_taps / 2;
-		for (int phase = 0; phase < kPhases; phase++)
-		{
-			const double fraction = (double)phase / kPhases;
-			double values[kMaxTaps];
-			double total = 0;
-			for (UINT tap = 0; tap < m_taps; tap++)
-			{
-				const double distance = (double)tap + fraction - center;
-				const double sinc = (fabs(distance) < 1e-12) ? 2.0 * cutoff :
-					sin(2.0 * pi * cutoff * distance) / (pi * distance);
-				const double window = 0.54 - 0.46 * cos(2.0 * pi * tap / (m_taps - 1));
-				values[tap] = sinc * window;
-				total += values[tap];
-			}
-			int sum = 0;
-			for (UINT tap = 0; tap < m_taps; tap++)
-			{
-				const double scaled = values[tap] * 65536.0 / total;
-				const int coefficient = (int)(scaled + ((scaled >= 0) ? 0.5 : -0.5));
-				m_coefficients[phase][tap] = coefficient;
-				sum += coefficient;
-			}
-			m_coefficients[phase][center] += 65536 - sum;
-		}
+		double values[kMaxTaps];
+		firresample_coefficients(m_coefficients, values, m_taps, kPhases,
+			(double)outputRate / inputRate, 0.45);
 	}
 
 	void ResetHistory()
@@ -113,7 +89,7 @@ public:
 			const double fraction = m_position - (double)inputIndex;
 			int phase = (int)(fraction * kPhases);
 			if (phase >= kPhases) phase = kPhases - 1;
-			const int* coefficients = m_coefficients[phase];
+			const int* coefficients = m_coefficients + phase * m_taps;
 			const SINT64 newest = (SINT64)m_taps + (SINT64)inputIndex - (SINT64)generatedBefore;
 			SINT64 left = 0;
 			SINT64 right = 0;
@@ -123,15 +99,15 @@ public:
 				left += (SINT64)sample[0] * coefficients[tap];
 				right += (SINT64)sample[1] * coefficients[tap];
 			}
-			output[frame * 2] += (SINT32)((left >= 0 ? left + 32768 : left - 32768) / 65536);
-			output[frame * 2 + 1] += (SINT32)((right >= 0 ? right + 32768 : right - 32768) / 65536);
+			output[frame * 2] += firresample_round(left);
+			output[frame * 2 + 1] += firresample_round(right);
 			m_position += m_step;
 		}
 		memcpy(m_previous, &m_samples[nGenerate * 2], m_taps * 2 * sizeof(SINT32));
 	}
 
 private:
-	enum { kMaxTaps = 65, kPhases = 256 };
+	enum { kMaxTaps = FIRRESAMPLE_TAPS, kPhases = FIRRESAMPLE_PHASES };
 	bool m_enabled;
 	UINT m_inputRate;
 	UINT m_taps;
@@ -139,7 +115,7 @@ private:
 	double m_step;
 	UINT64 m_generated;
 	SINT32 m_previous[kMaxTaps * 2];
-	int m_coefficients[kPhases][kMaxTaps];
+	int m_coefficients[kPhases * kMaxTaps];
 	std::vector<SINT32> m_samples;
 };
 

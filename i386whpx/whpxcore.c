@@ -207,50 +207,6 @@ ia32whpx_bioscall(void)
 	return ret;
 }
 
-#define	TSS_16_SIZE	44
-#define	TSS_16_LIMIT	(TSS_16_SIZE - 1)
-#define	TSS_32_SIZE	104
-#define	TSS_32_LIMIT	(TSS_32_SIZE - 1)
-
-static void CPUCALL
-ia32whpx_setWHPXtoNP2IOADDR()
-{
-	UINT16 iobase;
-	
-	if (CPU_STAT_PM && !CPU_STAT_VM86) {
-		/* check descriptor type & stack room size */
-		switch (CPU_TR_DESC.type) {
-		case CPU_SYSDESC_TYPE_TSS_16:
-		case CPU_SYSDESC_TYPE_TSS_BUSY_16:
-			if (CPU_TR_DESC.u.seg.limit < TSS_16_LIMIT) {
-				return;
-			}
-			iobase = 0;
-			break;
-
-		case CPU_SYSDESC_TYPE_TSS_32:
-		case CPU_SYSDESC_TYPE_TSS_BUSY_32:
-			if (CPU_TR_DESC.u.seg.limit < TSS_32_LIMIT) {
-				return;
-			}
-			iobase = cpu_kmemoryread_w(CPU_TR_DESC.u.seg.segbase + 102);
-				//return;
-			break;
-
-		default:
-			return;
-		}
-
-		/* I/O deny bitmap */
-		CPU_STAT_IOLIMIT = 0;
-		if (CPU_TR_DESC.type == CPU_SYSDESC_TYPE_TSS_BUSY_32) {
-			if (iobase < CPU_TR_LIMIT) {
-				CPU_STAT_IOLIMIT = (UINT16)(CPU_TR_LIMIT - iobase);
-				CPU_STAT_IOADDR = CPU_TR_BASE + iobase;
-			}
-		}
-	}
-}
 
 // WHPXレジスタ → NP2 IA-32 レジスタ
 void
@@ -367,7 +323,8 @@ ia32whpx_copyregWHPXtoNP2(void)
 	CPU_TR = np2whpxstat.state.tr.selector;
 	CPU_TR_BASE = np2whpxstat.state.tr.base;
 	CPU_TR_LIMIT = np2whpxstat.state.tr.limit;
-	CPU_TR_DESC.flag = np2whpxstat.state.tr.type;
+	CPU_TR_DESC.type = np2whpxstat.state.tr.type;
+	CPU_TR_DESC.flag = 0;
 	CPU_TR_DESC.s = np2whpxstat.state.tr.desc;
 	CPU_TR_DESC.dpl = np2whpxstat.state.tr.dpl;
 	CPU_TR_DESC.p = np2whpxstat.state.tr.available;
@@ -406,7 +363,10 @@ ia32whpx_copyregWHPXtoNP2(void)
 #endif
 	CPU_STAT_SS32 = CPU_SS_DESC.d;
 
-	ia32whpx_setWHPXtoNP2IOADDR();
+	/* Register sync must not access guest linear memory or raise #PF.
+	 * Rebuild the I/O bitmap cache only when the software core needs it. */
+	CPU_STAT_IOADDR = 0;
+	CPU_STAT_IOLIMIT = 0;
 
 }
 // NP2 IA-32 レジスタ → WHPXレジスタ
@@ -534,7 +494,7 @@ ia32whpx_copyregNP2toWHPX(void)
 	np2whpxstat.state.tr.selector = CPU_TR;
 	np2whpxstat.state.tr.base = CPU_TR_BASE;
 	np2whpxstat.state.tr.limit = CPU_TR_LIMIT;
-	np2whpxstat.state.tr.type = CPU_TR_DESC.flag;
+	np2whpxstat.state.tr.type = CPU_TR_DESC.type;
 	np2whpxstat.state.tr.desc = CPU_TR_DESC.s;
 	np2whpxstat.state.tr.dpl = CPU_TR_DESC.dpl;
 	//np2whpxstat.state.tr.present = CPU_TR_DESC.valid;

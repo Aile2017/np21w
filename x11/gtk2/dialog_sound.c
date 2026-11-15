@@ -52,7 +52,7 @@ static const struct {
 	{ "PSG",    &np2cfg.vol_ssg,    0.0, 128.0 },
 	{ "ADPCM",  &np2cfg.vol_adpcm,  0.0, 128.0 },
 	{ "PCM",    &np2cfg.vol_pcm,    0.0, 128.0 },
-	{ "Rhythm", &np2cfg.vol_rhythm, 0.0, 128.0 },
+	{ "Rhythm", &np2cfg.vol_rhythm, 0.0, 255.0 },
 };
 
 static GObject *mixer_adj[NELEMENTS(mixer_vol_tbl)];
@@ -606,7 +606,8 @@ mixer_default_button_clicked(GtkButton *b, gpointer d)
 	int i;
 
 	for (i = 0; i < NELEMENTS(mixer_vol_tbl); i++) {
-		gtk_adjustment_set_value(GTK_ADJUSTMENT(mixer_adj[i]), 64.0);
+		gtk_adjustment_set_value(GTK_ADJUSTMENT(mixer_adj[i]),
+		    mixer_vol_tbl[i].valp == &np2cfg.vol_rhythm ? 128.0 : 64.0);
 	}
 }
 

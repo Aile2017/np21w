@@ -96,6 +96,9 @@ vme_int_redirect_allowed(UINT vect)
 	if (CPU_TR_DESC.type != CPU_SYSDESC_TYPE_TSS_BUSY_32) {
 		return FALSE;
 	}
+#if defined(SUPPORT_IA32_HAXM) || defined(SUPPORT_IA32_WHPX)
+	cpu_refresh_io_bitmap_after_sync();
+#endif
 	if (CPU_STAT_IOLIMIT == 0) {
 		return FALSE;
 	}

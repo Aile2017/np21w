@@ -135,6 +135,7 @@ UINT32 npdisp_d3d_getDriverInfo(UINT32 lpDataAddr);
 void npdisp_d3d_reset(void);
 void npdisp_d3d_flush(void);
 bool npdisp_d3d_busy(void);
+bool npdisp_d3d_trySynchronize(void);
 void npdisp_d3d_poll(void);
 UINT32 npdisp_d3d_stateSize(void);
 bool npdisp_d3d_saveState(UINT8* dst, UINT32 size);

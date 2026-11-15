@@ -129,6 +129,7 @@ extern "C" {
 	void npdisp_setDirtyAll(void);
 	void npdisp_resetDirty(void);
 	void npdisp_setCursorLinear(UINT32 linearAddr);
+	BOOL npdisp_setAlphaCursor(UINT32 width, UINT32 height, UINT32 hotX, UINT32 hotY, UINT16 x, UINT16 y, const void* pixels);
 	void npdisp_moveCursorAbsolute(UINT16 x, UINT16 y);
 
 	int npdisp_drawGraphic(void);
