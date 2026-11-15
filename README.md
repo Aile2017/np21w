@@ -42,9 +42,17 @@ chronological order.
 1. **Build with Visual Studio 2026**(`build-vs2026`)
    Visual Studio 2026 でビルドできるようにします。プロジェクトの `PlatformToolset` を `v145` にし、
    リソースファイル(`.rc`)の `afxres.h` を `winres.h` に置き換え、`wab/npdisp_d3d.cpp` に BOM を付けます。
-2. **Treat AX keyboard (type 7) like 101 when auto-detecting**(`key101`)
-   キーボードの種類を自動判定するとき、AX キーボード(`GetKeyboardType(0) == 7`)を
-   101 キーボードと同様に扱います(`win9x/np2.cpp`、`win9x/winkbd.cpp`)。
+2. **101 キーボード(US 配列)で刻印どおりに入力できるようにする**(`key101`)
+   元のソースは、101 キーボードと認識しても、PC-98 のキー配列に位置を対応させるだけで、
+   US 配列の刻印どおりには入力できません。このパッチは、101 キーボードのモードで
+   US 配列の記号キー(`2 @`、`6 ^`、`7 &`、`8 *`、`9 (`、`0 )`、`- _`、`= +`、`[ {`、`] }`、
+   `; :`、`' "`、`` ` ~ ``、`\ |`、`, <`、`. >`、`/ ?`)を、Windows のキーボードレイアウトに
+   依存しないようスキャンコードで判定し、刻印どおりの文字になる PC-98 のキーとシフト状態に
+   変換して送ります(`win9x/winkbd.cpp`)。カナロック中は JIS 配列の位置どおりに送り、
+   CTRL / GRPH を併用しているときはシフト状態を操作しません。
+   あわせて、付加機能として、キーボードの種類の自動判定で AX キーボード
+   (`GetKeyboardType(0) == 7`)も英語キーボード(101)と判定されるようにしています
+   (`win9x/np2.cpp`)。
 3. **Emulate the 386/486 prefetch queue**(`prefetch`)
    386/486 の命令プリフェッチキュー(16 バイト)をエミュレートします
    (`i386c/ia32/cpu.c`、`cpu_mem.c`、`interface.h`)。CPU ファミリが 4 以下で、
