@@ -157,6 +157,7 @@ static const SFENTRY np2tbl[] = {
 #endif
 	{"VRAMCTRL",	0,	STATFLAG_BIN,	&vramop,		sizeof(vramop)},
 	{"TEXTRAM",		0,	STATFLAG_BIN,	&tramflag,		sizeof(tramflag)},
+	{"FONT",		0,	STATFLAG_BIN|STATFLAG_BWD_COMPATIBLE|STATFLAG_FWD_COMPATIBLE,	&statfont,		sizeof(statfont)},
 	{"GAIJI",		0,	STATFLAG_GIJ,	NULL,			0},
 	{"EVENT",		0,	STATFLAG_EVT,	&g_nevent,		sizeof(g_nevent)},
 	{"CALENDAR",	0,	STATFLAG_BIN,	&cal,			sizeof(cal)},

@@ -55,6 +55,7 @@ void fontdata_patchjis(void);
 
 UINT8 fontpc88_read(const OEMCHAR *filename, UINT8 loading);
 UINT8 fontpc98_read(const OEMCHAR *filename, UINT8 loading);
+void fontpc98_overlay(const OEMCHAR *filename, UINT8 *dst, const UINT8 *base);
 UINT8 fontv98_read(const OEMCHAR *filename, UINT8 loading);
 UINT8 fontfm7_read(const OEMCHAR *filename, UINT8 loading);
 UINT8 fontx1_read(const OEMCHAR *filename, UINT8 loading);

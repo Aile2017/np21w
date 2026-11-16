@@ -10,6 +10,10 @@
 
 #define FONTMEMORYSIZE 0x84000
 
+typedef struct {
+	UINT8 number;
+} _STATFONT;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,9 +25,14 @@ extern	UINT8	__font[FONTMEMORYSIZE];
 #define	fontrom		(__font)
 #endif
 
+extern	_STATFONT	statfont;
+
 void font_initialize(void);
 void font_setchargraph(BOOL epson);
 UINT8 font_load(const OEMCHAR *filename, BOOL force, const OEMCHAR* defaultfontface);
+
+void font_change(UINT8 number);
+UINT8 font_getnumber(void);
 
 #if defined(SUPPORT_TEXTHOOK)
 unsigned short font_Jis2Sjis( unsigned short jis );

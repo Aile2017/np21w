@@ -1560,6 +1560,7 @@ const SFENTRY	*tbl;
 const SFENTRY	*tblterm;
 
 	pccore.sound = g_nSoundID;
+	statfont.number = font_getnumber();
 
 	sffh = statflag_create(filename);
 	if (sffh == NULL) {
@@ -1813,6 +1814,8 @@ const SFENTRY	*tblterm;
 	cbuscore_reset(&np2cfg);
 	fmboard_reset(&np2cfg, pccore.sound);
 
+	// Old states have no FONT section.
+	ZeroMemory(&statfont, sizeof(statfont));
 	done = FALSE;
 	while((!done) && (ret != STATFLAG_FAILURE)) {
 		ret |= statflag_readsection(sffh);
@@ -2049,6 +2052,10 @@ const SFENTRY	*tblterm;
 		rhythm_update(&g_opna[i].rhythm);
 	}
 
+	// 動的変更フォント復元
+	if (done && ret != STATFLAG_FAILURE) {
+		font_change(statfont.number);
+	}
 	gdcs.textdisp |= GDCSCRN_EXT;
 	gdcs.textdisp |= GDCSCRN_ALLDRAW2;
 	gdcs.grphdisp |= GDCSCRN_EXT;

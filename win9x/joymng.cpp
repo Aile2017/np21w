@@ -55,6 +55,38 @@ void joymng_sync(void) {
 	joyflag = 0xff;
 }
 
+// POVの方向ベクトルを矩形の外周に投影する。
+static void joymng_povxy(JOYINFOEX *ji) {
+	if (np2oscfg.JOYPAD1POVXY)
+	{
+		if (ji->dwPOV == 0xffff)
+		{
+			ji->dwXpos = 32767;
+			ji->dwYpos = 32767;
+		}
+		else
+		{
+			double angle = ji->dwPOV * 3.14159265358979323846 / 18000;
+			double xf = sin(angle);
+			double yf = -cos(angle);
+			double xfa = xf >= 0 ? xf : -xf;
+			double yfa = yf >= 0 ? yf : -yf;
+			if (xfa > yfa)
+			{
+				xf /= xfa;
+				yf /= xfa;
+			}
+			else
+			{
+				xf /= yfa;
+				yf /= yfa;
+			}
+			ji->dwXpos = (DWORD)((xf * 32767) + 32767);
+			ji->dwYpos = (DWORD)((yf * 32767) + 32767);
+		}
+	}
+}
+
 REG8 joymng_getstat(void) {
 
 	JOYINFOEX		ji;
@@ -68,34 +100,7 @@ REG8 joymng_getstat(void) {
 				joyavailable = 1;
 				np2oscfg.JOYPAD1 |= 0x80;
 				joyflag = 0xff;
-				if (np2oscfg.JOYPAD1POVXY)
-				{
-					if (ji.dwPOV == 0xffff)
-					{
-						ji.dwXpos = 32767;
-						ji.dwYpos = 32767;
-					}
-					else
-					{
-						double angle = ji.dwPOV * 3.14159265358979323846 / 18000;
-						double xf = sin(angle);
-						double yf = -cos(angle);
-						double xfa = xf >= 0 ? xf : -xf;
-						double yfa = yf >= 0 ? yf : -yf;
-						if (xfa > yfa)
-						{
-							xf /= xfa;
-							yf /= xfa;
-						}
-						else
-						{
-							xf /= yfa;
-							yf /= yfa;
-						}
-						ji.dwXpos = (DWORD)((xf * 32767) + 32767);
-						ji.dwYpos = (DWORD)((yf * 32767) + 32767);
-					}
-				}
+				joymng_povxy(&ji);
 				joyAnalogX = ji.dwXpos;
 				joyAnalogY = ji.dwYpos;
 				if (ji.dwXpos < 0x4000U) {
@@ -145,6 +150,33 @@ UINT32 joymng_getAnalogY(void)
 	return joyAnalogY;
 }
 
+
+#if defined(SUPPORT_NPJOY)
+// ボタン1～4を直接返す。PC-98向けのボタン割り当て・連射・入力キャッシュは使用しない。
+BOOL joymng_getnpjoy(UINT16 *x, UINT16 *y, UINT8 *buttons) {
+
+	JOYINFOEX ji;
+
+	*x = 0x8000;
+	*y = 0x8000;
+	*buttons = 0;
+	// 有効ビットのみ参照する。再接続時にも入力を取得できるようにする。
+	if (!(np2oscfg.JOYPAD1 & 1)) {
+		return FALSE;
+	}
+	ZeroMemory(&ji, sizeof(ji));
+	ji.dwSize = sizeof(ji);
+	ji.dwFlags = JOY_RETURNALL;
+	if (joyGetPosEx(JOYSTICKID1 + np2oscfg.JOYPAD1ID, &ji) != JOYERR_NOERROR) {
+		return FALSE;
+	}
+	joymng_povxy(&ji);
+	*x = (UINT16)((ji.dwXpos > 65535U) ? 65535U : ji.dwXpos);
+	*y = (UINT16)((ji.dwYpos > 65535U) ? 65535U : ji.dwYpos);
+	*buttons = (UINT8)(ji.dwButtons & 0x0f);
+	return TRUE;
+}
+#endif
 
 // joyflag	bit:0		up
 // 			bit:1		down

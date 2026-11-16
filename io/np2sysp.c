@@ -7,6 +7,7 @@
 #include	"cpucore.h"
 #include	"pccore.h"
 #include	"iocore.h"
+#include	"font/font.h"
 #include	"bios/sxsibios.h"
 #if defined(SUPPORT_HOSTDRV)
 #include	"hostdrv.h"
@@ -55,6 +56,12 @@
 #endif
 #include	"dosio.h"
 #include	"mousemng.h"
+#if defined(_WIN32)
+#include	"joymng.h"
+#endif
+#if defined(SUPPORT_NPJOY)
+#include	"npjoyio.h"
+#endif
 
 #include <shlwapi.h>
 
@@ -141,6 +148,7 @@ static const OEMCHAR str_mhz[] = OEMTEXT("%uMHz");
 #define NP21W_SWITCH_SETDEVICEIRQ		10
 #define NP21W_SWITCH_NPDISPENABLE		11
 #define NP21W_SWITCH_GA1280AENABLE		12
+#define NP21W_SWITCH_FONT				13
 
 #define NP21W_SWITCH_SETDEVICEIRQ_SUPPORTED		0
 #define NP21W_SWITCH_SETDEVICEIRQ_SND_26		1
@@ -430,6 +438,9 @@ static void np2sysp_getconfig(const void *arg1, long arg2) {
 		configvalue = ga1280a.enabled ? 1 : 0;
 #endif
 		return;
+	case NP21W_SWITCH_FONT:
+		configvalue = font_getnumber();
+		break;
 	case NP21W_SWITCH_DUMMY:
 	default:
 		break;
@@ -724,6 +735,10 @@ static void np2sysp_cngconfig(const void *arg1, long arg2) {
 		configvalue = ga1280a.enabled ? 1 : 0;
 #endif
 		break;
+	case NP21W_SWITCH_FONT:
+		font_change(configvalue);
+		gdcs.textdisp |= GDCSCRN_ALLDRAW2;
+		break;
 	case NP21W_SWITCH_DUMMY:
 	default:
 		break;
@@ -1013,25 +1028,62 @@ static REG8 IOINPCALL np2sysp_i0e9(UINT port) {
 
 // ---- I/F
 
+#if defined(SUPPORT_NPJOY)
+// STATUSで1組の入力を取得し、DATAを読み出すたびに1バイトずつ返す。
+static UINT8 npjoy_data[NPJOY_DATA_LEN] = {
+	0, 0x80, 0, 0x80, NPJOY_MAGIC0, NPJOY_MAGIC1, NPJOY_MAGIC2
+};
+static UINT npjoy_pos = NPJOY_DATA_LEN;
+
+static REG8 IOINPCALL npjoy_iport_status(UINT port) {
+	UINT16 x, y;
+	UINT8 buttons;
+	BOOL connected;
+
+	(void)port;
+	connected = joymng_getnpjoy(&x, &y, &buttons);
+	npjoy_data[0] = (UINT8)x;
+	npjoy_data[1] = (UINT8)(x >> 8);
+	npjoy_data[2] = (UINT8)y;
+	npjoy_data[3] = (UINT8)(y >> 8);
+	npjoy_pos = 0;
+	return (connected ? NPJOY_STATUS_ON | (buttons & NPJOY_BUTTON_MASK) : NPJOY_STATUS_OFF);
+}
+
+static REG8 IOINPCALL npjoy_iport_data(UINT port) {
+	(void)port;
+	if (npjoy_pos < NPJOY_DATA_LEN) {
+		return npjoy_data[npjoy_pos++];
+	}
+	return 0xff;
+}
+#endif
+
 void np2sysp_reset(const NP2CFG *pConfig) {
 	
 	ZeroMemory(&np2sysp, sizeof(np2sysp));
+#if defined(SUPPORT_NPJOY)
+	npjoy_pos = NPJOY_DATA_LEN;
+#endif
 
 	(void)pConfig;
 }
 
 void np2sysp_bind(void) {
-
 	iocore_attachout(0x07ed, np2sysp_o7ed);
 	iocore_attachout(0x07ef, np2sysp_o7ef);
 	iocore_attachinp(0x07ed, np2sysp_i7ed);
 	iocore_attachinp(0x07ef, np2sysp_i7ef);
+#if defined(SUPPORT_NPJOY)
+	iocore_attachinp(NPJOY_IO_STATUS, npjoy_iport_status);
+	iocore_attachinp(NPJOY_IO_DATA, npjoy_iport_data);
+#endif
 
 	// 他、
 	// hostdrv for 9x (generic/hostdrv9x.c) が0x07e4, 0x07e6（デバッグの場合0x07e0-0x07e2）
 	// hostdrv for NT（generic/hostdrvnt.c）が0x07ec, 0x07ee
 	// Neko Project II Fast SCSI（cbus/scsiio.c）が0x07ea, 0x07eb
-	// Neko Project II Display Adapter（wab/npdisp.c）が0x07e8, 0x07e9
+	// Neko Project II Display Adapter（wab/npdisp.cpp）が0x07e7-0x07e9
 	// を使う
 
 #if defined(NP2APPDEV)

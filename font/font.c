@@ -19,6 +19,24 @@
 #endif
 
 static const OEMCHAR fonttmpname[] = OEMTEXT("font.tmp");
+static UINT8 fontbase[FONTMEMORYSIZE];
+static UINT8 fontnumber;
+
+_STATFONT statfont;
+
+void font_change(UINT8 number) {
+
+	OEMCHAR fname[16];
+
+	OEMSPRINTF(fname, OEMTEXT("FONT%u.BMP"), (UINT)number);
+	fontpc98_overlay(file_getcd(fname), fontrom, fontbase);
+	fontnumber = number;
+}
+
+UINT8 font_getnumber(void) {
+
+	return(fontnumber);
+}
 
 /**
  * Initializes CGROM
@@ -187,6 +205,9 @@ const UINT8	*p;
 		}
 		loading = fontpc98_read(fname, loading);
 	}
+	// 変更前の元のフォントを記憶しておく
+	CopyMemory(fontbase, fontrom, FONTMEMORYSIZE);
+	font_change(0);
 	return(type);
 }
 
