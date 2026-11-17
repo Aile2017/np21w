@@ -1642,9 +1642,6 @@ void pccore_exec(BOOL draw) {
 	if (pcstat.hardwarereset) {
 		pcstat.hardwarereset = FALSE;
 		pccore_cfgupdate();
-		if(nevent_iswork(NEVENT_CDWAIT)){
-			nevent_forceexecute(NEVENT_CDWAIT);
-		}
 		pccore_reset();
 	}
 

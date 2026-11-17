@@ -20,8 +20,6 @@
 
 extern UINT8	np2userpause;
 
-extern "C" REG8 cdchange_drv;
-
 	UINT	sys_updates;
 
 	SYSMNGMISCINFO	sys_miscinfo = {0};
@@ -396,9 +394,6 @@ void sysmng_updatecaption(UINT8 flag) {
 					if(*(np2cfg.idecd[i])) {
 						milstr_ncat(title, work, NELEMENTS(title));
 						milstr_ncat(title, sysmng_file_getname(np2cfg.idecd[i]), NELEMENTS(title));
-					}else if(i==cdchange_drv && g_nevent.item[NEVENT_CDWAIT].clock > 0){
-						milstr_ncat(title, work, NELEMENTS(title));
-						milstr_ncat(title, OEMTEXT("Now Loading..."), NELEMENTS(title));
 					}
 				}
 				cddrvnum++;

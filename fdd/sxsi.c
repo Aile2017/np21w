@@ -8,6 +8,7 @@
 #include	"sxsi.h"
 #if defined(SUPPORT_IDEIO)
 #include	"ideio.h"
+#include	"atapicmd.h"
 #endif
 #if defined(SUPPORT_MULTITHREAD)
 #include	"np2mt.h"
@@ -63,10 +64,16 @@ static void nc_destroy(SXSIDEV sxsi) {
 static void sxsi_disconnect(SXSIDEV sxsi) {
 
 	if (sxsi) {
-		if (sxsi->flag & SXSIFLAG_FILEOPENED) {
 #if defined(SUPPORT_IDEIO)
-			ideio_notify(sxsi->drv, 0);
+		if ((sxsi->flag & SXSIFLAG_READY) && (sxsi->devtype == SXSIDEV_CDROM)) {
+#if defined(_WINDOWS)
+			// 非同期読み出し中なら待つ
+			atapi_dataread_asyncwait(INFINITE);
 #endif
+			ideio_notify(sxsi->drv, 0);
+		}
+#endif
+		if (sxsi->flag & SXSIFLAG_FILEOPENED) {
 			(*sxsi->close)(sxsi);
 		}
 		if (sxsi->flag & SXSIFLAG_READY) {
@@ -230,26 +237,6 @@ UINT8 sxsi_getdevtype(REG8 drv) {
 	}
 }
 
-// CD入れ替えのタイムアウト（投げやり）
-char cdchange_flag = 0;
-DWORD cdchange_reqtime = 0;
-REG8 cdchange_drv;
-OEMCHAR cdchange_fname[MAX_PATH];
-void cdchange_timeoutproc(NEVENTITEM item) {
-
-	if(!cdchange_flag) return;
-	cdchange_flag = 0;
-	sxsi_devopen(cdchange_drv, cdchange_fname);
-#if defined(SUPPORT_IDEIO)
-	ideio_mediachange(cdchange_drv);
-#endif
-	sysmng_requestupdatecaption(SYS_UPDATECAPTION_FDD);
-}
-static void cdchange_timeoutset(void) {
-
-	nevent_setbyms(NEVENT_CDWAIT, 6000, cdchange_timeoutproc, NEVENT_ABSOLUTE);
-}
-
 #ifdef SUPPORT_NVL_IMAGES
 BRESULT sxsihdd_nvl_open(SXSIDEV sxsi, const OEMCHAR *fname);
 #endif
@@ -279,64 +266,39 @@ BRESULT sxsi_devopen(REG8 drv, const OEMCHAR *fname) {
 
 		case SXSIDEV_CDROM:
 #if defined(SUPPORT_IDEIO)
-			if (cdchange_flag) {
-				// CD交換中
-				if(GetTickCount()-cdchange_reqtime>5000){
-					// 強制交換
-					cdchange_timeoutproc(NULL);
-				}
-				return(FAILURE);
-			}
-			if ((fname == NULL) || (fname[0] == '\0')) {
+			{
+				OEMCHAR path[MAX_PATH];
 				int num = drv & 0x03;
-				if (sxsi->flag & SXSIFLAG_FILEOPENED) {
-					ideio_notify(sxsi->drv, 0);
-					(*sxsi->close)(sxsi);
-				}
-				if (sxsi->flag & SXSIFLAG_READY) {
-					(*sxsi->destroy)(sxsi);
-				}
-				file_cpyname(sxsi->fname, _T("\0\0\0\0"), 1);
-				sxsi->flag = 0;
-				file_cpyname(np2cfg.idecd[num], _T("\0\0\0\0"), 1);
-				sysmng_updatecaption(SYS_UPDATECAPTION_FDD);
-				return(SUCCESS);
-			}
-			else {
-				if((sxsi->flag & SXSIFLAG_READY) && (_tcsnicmp(sxsi->fname, OEMTEXT("\\\\.\\"), 4)!=0 || _tcsicmp(sxsi->fname, np2cfg.idecd[drv & 0x0f])==0) ){
-					// いったん取り出す
-					if (sxsi->flag & SXSIFLAG_FILEOPENED) {
-						ideio_notify(sxsi->drv, 0);
-						(*sxsi->close)(sxsi);
-					}
-					if (sxsi->flag & SXSIFLAG_READY) {
-						(*sxsi->destroy)(sxsi);
-					}
-					sxsi->flag = 0;
-					cdchange_drv = drv;
-					file_cpyname(sxsi->fname, _T("\0\0\0\0"), 1);
-					file_cpyname(np2cfg.idecd[drv & 0x03], _T("\0\0\0\0"), NELEMENTS(cdchange_fname));
-					file_cpyname(cdchange_fname, fname, NELEMENTS(cdchange_fname));
-					cdchange_flag = 1;
-					cdchange_timeoutset();
-					cdchange_reqtime = GetTickCount();
+
+				// fname退避
+				file_cpyname(path, fname ? fname : OEMTEXT(""), NELEMENTS(path));
+				sxsi_disconnect(sxsi);
+				sxsi->fname[0] = '\0';
+				np2cfg.idecd[num][0] = '\0';
+				if (!path[0]) {
 					sysmng_updatecaption(SYS_UPDATECAPTION_FDD);
-					return(FAILURE); // XXX: ここで失敗返してええの？
+					return(SUCCESS);
 				}
-				r = sxsicd_open(sxsi, fname);
-				if (r == SUCCESS || _tcsnicmp(fname, OEMTEXT("\\\\.\\"), 4)==0) {
-					int num = drv & 0x03;
-					file_cpyname(np2cfg.idecd[num], fname, MAX_PATH);
-					if(r != SUCCESS && _tcsnicmp(fname, OEMTEXT("\\\\.\\"), 4)==0){
-						ideio_notify(sxsi->drv, 0);
-					}
-				}else{
-					int num = drv & 0x03;
-					file_cpyname(np2cfg.idecd[num], _T("\0\0\0\0"), 1);
+
+				r = sxsicd_open(sxsi, path);
+				if (r == SUCCESS) {
+					file_cpyname(sxsi->fname, path, NELEMENTS(sxsi->fname));
+					sxsi->flag = SXSIFLAG_READY | SXSIFLAG_FILEOPENED;
+					ideio_notify(sxsi->drv, 1);
+				}
+#ifdef SUPPORT_PHYSICAL_CDDRV
+				// 実ドライブは空でも選択状態を維持
+				if (r == SUCCESS || _tcsnicmp(path, OEMTEXT("\\\\.\\"), 4) == 0) {
+#else
+				if (r == SUCCESS) {
+#endif
+					file_cpyname(np2cfg.idecd[num], path, NELEMENTS(np2cfg.idecd[num]));
 				}
 				sysmng_updatecaption(SYS_UPDATECAPTION_FDD);
-				ideio_mediachange(drv);
+				return(r);
 			}
+#else
+			r = FAILURE;
 #endif
 			break;
 

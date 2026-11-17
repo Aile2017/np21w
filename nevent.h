@@ -43,8 +43,8 @@ enum tagNEventId
 	NEVENT_86PCM		= 25,
 	NEVENT_SASIIO		= 26,
 	NEVENT_SCSIIO		= 27,
-	NEVENT_CDWAIT		= 28, // XXX: 勝手に使ってOK?
-	NEVENT_CT1741		= 29, // np2sより 28を使っちゃったので29に np21w ver0.86 rev29
+	// 元 NEVENT_CDWAIT = 28 未使用
+	NEVENT_CT1741		= 29, // np2sより
 	NEVENT_HRTIMER		= 30,
 	/* ---- */
 	NEVENT_MAXEVENTS	= 32

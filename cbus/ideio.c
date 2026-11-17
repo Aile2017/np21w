@@ -1866,7 +1866,6 @@ static void devinit(IDEDRV drv, REG8 sxsidrv) {
 //	}
 //#endif
 	//memset(ideio_mediastatusnotification, 0, sizeof(ideio_mediastatusnotification));
-	//memset(ideio_mediachangeflag, 0, sizeof(ideio_mediachangeflag));
 }
 
 void ideio_initialize(void) {
@@ -2026,67 +2025,41 @@ void ideio_bind(void) {
 void ideio_notify(REG8 sxsidrv, UINT action) {
 
 	SXSIDEV sxsi;
-	IDEDRV	drv;
+	IDEDRV drv;
 	REG8 i;
 
 	sxsi = sxsi_getptr(sxsidrv);
-	if ((sxsi == NULL)
-	 || (!(sxsi->flag & SXSIFLAG_READY))
-	 || (sxsi->devtype != SXSIDEV_CDROM)) {
+	if ((sxsi == NULL) || (sxsi->devtype != SXSIDEV_CDROM)) {
 		return;
 	}
 
 	for (i=0; i<4; i++) {
 		drv = ideio.dev[i >> 1].drv + (i & 1);
-		if ((drv != NULL) && (drv->sxsidrv == sxsidrv)) {
-			goto do_notify;
+		if ((drv->device == IDETYPE_CDROM) && (drv->sxsidrv == sxsidrv)) {
+			if (action == 1 && (sxsi->flag & SXSIFLAG_READY)) {
+				// 取り外し通知があれば保持
+				drv->media &= ~IDEIO_MEDIA_COMBINE;
+				drv->media |= IDEIO_MEDIA_CHANGED | IDEIO_MEDIA_LOADED;
+				if (sxsi->mediatype & SXSIMEDIA_DATA)
+					drv->media |= IDEIO_MEDIA_DATA;
+				if (sxsi->mediatype & SXSIMEDIA_AUDIO)
+					drv->media |= IDEIO_MEDIA_AUDIO;
+			}
+			else if (action == 0) {
+				if (drv->media & IDEIO_MEDIA_LOADED) {
+					drv->media |= IDEIO_MEDIA_REMOVED;
+				}
+				drv->media &= ~(IDEIO_MEDIA_LOADED | IDEIO_MEDIA_CHANGED | IDEIO_MEDIA_COMBINE);
+				// CD-DAの再生位置と音声バッファを破棄
+				ideio.daplaying &= ~(1 << i);
+				drv->daflag = 0x13;
+				drv->dacurpos = 0;
+				drv->dalength = 0;
+				drv->dabufrem = 0;
+			}
+			return;
 		}
 	}
-	return;
-
-do_notify:
-	switch(action) {
-		case 1:
-			drv->media |= (IDEIO_MEDIA_CHANGED|IDEIO_MEDIA_LOADED);
-			if (sxsi->mediatype & SXSIMEDIA_DATA)
-				drv->media |= IDEIO_MEDIA_DATA;
-			if (sxsi->mediatype & SXSIMEDIA_AUDIO)
-				drv->media |= IDEIO_MEDIA_AUDIO;
-			break;
-
-		case 0:
-			drv->media &= ~(IDEIO_MEDIA_LOADED|IDEIO_MEDIA_COMBINE);
-			break;
-	}
-}
-
-void ideio_mediachange(REG8 sxsidrv) {
-	
-	//SXSIDEV sxsi;
-	//IDEDRV	drv;
-	//REG8 i;
-	//
-	//sxsi = sxsi_getptr(sxsidrv);
-	//if ((sxsi == NULL)
-	// || (!(sxsi->flag & SXSIFLAG_READY))
-	// || (sxsi->devtype != SXSIDEV_CDROM)) {
-	//	return;
-	//}
-
-	//for (i=0; i<4; i++) {
-	//	drv = ideio.dev[i >> 1].drv + (i & 1);
-	//	if ((drv != NULL) && (drv->sxsidrv == sxsidrv)) {
-	//		break;
-	//	}
-	//}
-	//if(i==4) return;
-	//
-	//drv->status |= IDESTAT_ERR;
-	//drv->error |= IDEERR_MCNG;
-	//drv->error &= ~IDEERR_MCNG; // 一旦フラグクリア
-	//drv->media |= IDEIO_MEDIA_CHANGED;
-	//setintr(drv);
-	//ideio_mediachangeflag[sxsidrv] = 1;
 }
 
 #endif	/* SUPPORT_IDEIO */

@@ -1011,9 +1011,6 @@ static void OnCommand(HWND hWnd, WPARAM wParam)
 #endif
 				np2_multithread_Suspend();
 				pccore_cfgupdate();
-				if(nevent_iswork(NEVENT_CDWAIT)){
-					nevent_forceexecute(NEVENT_CDWAIT);
-				}
 				pccore_reset();
 				np2_SetUserPause(0);
 				np2_multithread_Resume();
@@ -2518,9 +2515,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					stop_hook_systemkey();
 #endif
 					np2_multithread_Suspend();
-					if(nevent_iswork(NEVENT_CDWAIT)){
-						nevent_forceexecute(NEVENT_CDWAIT);
-					}
 					pccore_reset();
 					np2_SetUserPause(0);
 					np2_multithread_Resume();
@@ -3432,9 +3426,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					stop_hook_systemkey();
 #endif
 					np2_multithread_Suspend();
-					if(nevent_iswork(NEVENT_CDWAIT)){
-						nevent_forceexecute(NEVENT_CDWAIT);
-					}
 					pccore_reset();
 					np2_SetUserPause(0);
 					np2_multithread_Resume();

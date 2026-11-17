@@ -197,90 +197,73 @@ static void atapi_cmd_pauseresume(IDEDRV drv);
 static void atapi_cmd_seek(IDEDRV drv, UINT32 lba);
 static void atapi_cmd_mechanismstatus(IDEDRV drv);
 
-#define MEDIA_CHANGE_WAIT	6	// Waitを入れないとWinNT系で正しくメディア交換出来ない
-static int mediachangeflag = 0;
+// メディアに依存するコマンド（空のドライブでも実行できるコマンドは除く）
+static BOOL atapi_needs_medium(UINT8 cmd) {
 
-extern REG8 cdchange_drv;
-void cdchange_timeoutproc(NEVENTITEM item);
+	switch (cmd) {
+	case 0x00: // TEST UNIT READY
+	case 0x25: // READ CAPACITY
+	case 0x28: // READ(10)
+	case 0x2b: // SEEK
+	case 0x42: // READ SUB-CHANNEL
+	case 0x43: // READ TOC
+	case 0x45: // PLAY AUDIO
+	case 0x47: // PLAY AUDIO MSF
+	case 0x4b: // PAUSE/RESUME
+	case 0xbe: // READ CD
+	case 0xb9: // READ CD MSF
+		return(TRUE);
+	}
+	return(FALSE);
+}
+
+// CD交換通知用コマンド応答
+static void atapi_media_error(IDEDRV drv, UINT8 sk, UINT16 asc) {
+
+	drv->error = 0;
+	ATAPI_SET_SENSE_KEY(drv, sk);
+	drv->asc = asc;
+	senderror(drv);
+}
+
+static BOOL atapi_check_media(IDEDRV drv, BOOL needsmedium) {
+
+	// 交換時　最初はNOT_READYを返す
+	if (needsmedium && (drv->media & IDEIO_MEDIA_REMOVED)) {
+		drv->media &= ~IDEIO_MEDIA_REMOVED;
+		atapi_media_error(drv, ATAPI_SK_NOT_READY, ATAPI_ASC_MEDIUM_NOT_PRESENT);
+		return(FALSE);
+	}
+	// 交換時　次にUNIT_ATTENTIONを返す
+	if (!(drv->media & IDEIO_MEDIA_REMOVED) && (drv->media & IDEIO_MEDIA_CHANGED)) {
+		drv->media &= ~IDEIO_MEDIA_CHANGED;
+		atapi_media_error(drv, ATAPI_SK_UNIT_ATTENTION, ATAPI_ASC_NOT_READY_TO_READY_TRANSITION);
+		return(FALSE);
+	}
+	// 現在の状態を返す
+	if (needsmedium) {
+		SXSIDEV sxsi = sxsi_getptr(drv->sxsidrv);
+		if (!(drv->media & IDEIO_MEDIA_LOADED) || sxsi == NULL || !(sxsi->flag & SXSIFLAG_READY)) {
+			atapi_media_error(drv, ATAPI_SK_NOT_READY, ATAPI_ASC_MEDIUM_NOT_PRESENT);
+			return(FALSE);
+		}
+	}
+	return(TRUE);
+}
 
 void atapicmd_a0(IDEDRV drv) {
 
-	UINT32	lba, leng;
-	UINT8	cmd;
+	UINT32 lba, leng;
+	UINT8 cmd;
 
 	cmd = drv->buf[0];
+	// INQUIRYとREQUEST SENSEはメディア交換通知処理の対象外
+	if (cmd != 0x12 && cmd != 0x03 && !atapi_check_media(drv, atapi_needs_medium(cmd))) {
+		return;
+	}
 	switch (cmd) {
 	case 0x00:		// test unit ready
 		TRACEOUT(("atapicmd: test unit ready"));
-		if (!(drv->media & IDEIO_MEDIA_LOADED)) {
-			/* medium not present */
-			ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_NOT_READY);
-			drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-			if(drv->sxsidrv==cdchange_drv && g_nevent.item[NEVENT_CDWAIT].clock > 0){
-				if(mediachangeflag==MEDIA_CHANGE_WAIT){
-					nevent_set(NEVENT_CDWAIT, 500, cdchange_timeoutproc, NEVENT_ABSOLUTE); // OS側がCDを催促しているようなので更に急いで交換
-				}else if(mediachangeflag==0){
-					nevent_setbyms(NEVENT_CDWAIT, 1000, cdchange_timeoutproc, NEVENT_ABSOLUTE); // OS側がCDが無いと認識したようなので急いで交換
-				}
-			}
-			if(mediachangeflag < MEDIA_CHANGE_WAIT) mediachangeflag++;
-			//drv->status |= IDESTAT_ERR;
-			//drv->error = IDEERR_MCNG;
-			senderror(drv);
-			break;
-		}
-		if (drv->media & IDEIO_MEDIA_CHANGED) {
-			UINT8 olderror = drv->error;
-			ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_NOT_READY);
-			if(drv->damsfbcd){
-				// NECCDD.SYS
-				//if(mediachangeflag){
-				//if(mediachangeflag >= MEDIA_CHANGE_WAIT){
-					drv->media &= ~IDEIO_MEDIA_CHANGED;
-					drv->asc = ATAPI_ASC_NOT_READY_TO_READY_TRANSITION;
-					//drv->error &= ~IDEERR_MCRQ;
-				//}else{
-				//	drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-				//	mediachangeflag++;
-				//	//drv->status |= IDESTAT_ERR;
-				//	//drv->error |= IDEERR_MCRQ;
-				//}
-			}else{
-				// for WinNT,2000 setup
-				//if(mediachangeflag >= MEDIA_CHANGE_WAIT){
-					drv->media &= ~IDEIO_MEDIA_CHANGED;
-					drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-					//drv->asc = 0x0204; // LOGICAL DRIVE NOT READY - INITIALIZING COMMAND REQUIRED
-				//}else if(mediachangeflag >= 1){
-				//	drv->asc = 0x0204; // LOGICAL DRIVE NOT READY - INITIALIZING COMMAND REQUIRED
-				//	mediachangeflag++;
-//				}else{
-//					drv->asc = ATAPI_ASC_MEDIUM_NOT_PRESENT;
-////#if defined(CPUCORE_IA32)
-////					// Workaround for WinNT
-////					if (CPU_STAT_PM && !CPU_STAT_VM86) {
-//						//mediachangeflag++;
-////					} else
-////#endif
-////					{
-//						mediachangeflag = MEDIA_CHANGE_WAIT;
-//					//}
-//				}
-			}
-			/* stop playing audio */
-			ideio.daplaying &= ~(1 << (drv->sxsidrv & 3));
-			drv->daflag = 0x13;
-			drv->dacurpos = 0;
-			drv->dalength = 0;
-			senderror(drv);
-			break;
-		}
-		mediachangeflag = 0;
-		//if(drv->error & IDEERR_MCNG){
-		//	drv->status &= ~IDESTAT_ERR;
-		//	drv->error &= ~IDEERR_MCNG;
-		//}
-
 		cmddone(drv);
 		break;
 
@@ -290,17 +273,24 @@ void atapicmd_a0(IDEDRV drv) {
 		ZeroMemory(drv->buf, 18);
 		drv->buf[0] = 0x70;
 		drv->buf[2] = drv->sk;
-		drv->buf[7] = 11;	// length
+		drv->buf[7] = 10;	// additional sense length
 		drv->buf[12] = (UINT8)(drv->asc & 0xff); // Additional Sense Code
 		drv->buf[13] = (UINT8)((drv->asc>>8) & 0xff); // Additional Sense Code Qualifier (Optional)
 		senddata(drv, 18, leng);
 		break;
 
 	case 0x12:		// inquiry
-		TRACEOUT(("atapicmd: inquiry"));
-		leng = drv->buf[4];
-		CopyMemory(drv->buf, cdrom_inquiry, sizeof(cdrom_inquiry));
-		senddata(drv, sizeof(cdrom_inquiry), leng);
+		{
+			UINT8 sk = drv->sk;
+			UINT16 asc = drv->asc;
+			TRACEOUT(("atapicmd: inquiry"));
+			leng = drv->buf[4];
+			CopyMemory(drv->buf, cdrom_inquiry, sizeof(cdrom_inquiry));
+			senddata(drv, sizeof(cdrom_inquiry), leng);
+			// INQUIRYの正常終了時はSense情報を維持
+			drv->sk = sk;
+			drv->asc = asc;
+		}
 		break;
 
 	case 0x1b:		// start stop unit
@@ -525,8 +515,8 @@ static void atapi_cmd_read_capacity(IDEDRV drv) {
 	UINT32 totals;
 
 	sxsi = sxsi_getptr(drv->sxsidrv);
-	if ((sxsi == NULL) || (!(sxsi->flag & SXSIFLAG_READY) && drv->device != IDETYPE_CDROM)) {
-		senderror(drv);
+	if ((sxsi == NULL) || !(sxsi->flag & SXSIFLAG_READY)) {
+		atapi_media_error(drv, ATAPI_SK_NOT_READY, ATAPI_ASC_MEDIUM_NOT_PRESENT);
 		return;
 	}
 	totals = (UINT32)sxsi->totals;
@@ -548,6 +538,7 @@ static void atapi_cmd_read_capacity(IDEDRV drv) {
 // 0x28: READ(10)
 #if defined(_WINDOWS)
 static int atapi_dataread_error = -1;
+static BOOL atapi_dataread_pending = FALSE;
 void atapi_dataread_threadfunc_part(IDEDRV drv) {
 
 	SXSIDEV	sxsi;
@@ -568,7 +559,14 @@ void atapi_dataread_threadfunc_part(IDEDRV drv) {
 	atapi_dataread_error = 0;
 }
 void atapi_dataread_asyncwait(int wait) {
-	if(atapi_dataread_error!=-1 && atapi_thread_drv && (!np2cfg.useasynccd || !atapi_thread || WaitForSingleObject(atapi_thread_event_complete, wait) == WAIT_OBJECT_0)){
+	// 非同期要求中なら完了待ち
+	if (atapi_dataread_pending) {
+		if (WaitForSingleObject(atapi_thread_event_complete, wait) != WAIT_OBJECT_0) {
+			return;
+		}
+		atapi_dataread_pending = FALSE;
+	}
+	if(atapi_dataread_error!=-1 && atapi_thread_drv){
 		IDEDRV drv = atapi_thread_drv;
 		SXSIDEV	sxsi;
 		sxsi = sxsi_getptr(drv->sxsidrv);
@@ -648,6 +646,11 @@ void atapi_dataread(IDEDRV drv) {
 		return;
 	}
 
+	// 転送中に交換された場合抜ける
+	if (!atapi_check_media(drv, TRUE)) {
+		return;
+	}
+
 	// エラー処理目茶苦茶～
 	if (drv->nsectors == 0) {
 		sendabort(drv);
@@ -662,6 +665,7 @@ void atapi_dataread(IDEDRV drv) {
 			ResetEvent(atapi_thread_event_complete);
 			atapi_dataread_error = -1;
 			atapi_thread_drv = drv;
+			atapi_dataread_pending = TRUE;
 			SetEvent(atapi_thread_event_request);
 			atapi_dataread_asyncwait(2);
 		}else{
@@ -685,6 +689,11 @@ void atapi_dataread(IDEDRV drv) {
 
 	SXSIDEV	sxsi;
 	sxsi = sxsi_getptr(drv->sxsidrv);
+
+	// 転送中に交換された場合抜ける
+	if (!atapi_check_media(drv, TRUE)) {
+		return;
+	}
 
 	// エラー処理目茶苦茶～
 	if (drv->nsectors == 0) {
@@ -854,7 +863,7 @@ static void atapi_cmd_read_cd(IDEDRV drv, UINT32 lba, UINT32 nsec) {
 	if(isCDDA){
 		// Audio
 		if (sxsicd_readraw(sxsi, drv->sector, drv->buf) != SUCCESS) {
-			atapi_dataread_errorend(0);
+			atapi_dataread_errorend(drv);
 			return;
 		}
 		bufsize = 2352;
@@ -866,7 +875,7 @@ static void atapi_cmd_read_cd(IDEDRV drv, UINT32 lba, UINT32 nsec) {
 
 		// MODE1決め打ち
 		if (sxsicd_readraw(sxsi, drv->sector, rawdata) != SUCCESS) {
-			atapi_dataread_errorend(0);
+			atapi_dataread_errorend(drv);
 			return;
 		}
 
@@ -901,22 +910,13 @@ static void atapi_cmd_read_cd(IDEDRV drv, UINT32 lba, UINT32 nsec) {
 			//bufsize += 8;
 		}
 		if (hasdata){
-			memcpy(bufptr, rawdata + 12 + 4 + 8, 2048);
+			memcpy(bufptr, rawdata + 12 + 4, 2048);
 			bufptr += 2048;
 			bufsize += 2048;
 		}
 		if (hasedcecc){
-			//// MODE1
-			//memcpy(bufptr, rawdata + 12 + 4 + 8 + 2048, 4);
-			//memcpy(bufptr + 4, rawdata + 12 + 4 + 8 + 2048 + 12, 276);
-
-			////// XA
-			////memcpy(bufptr, rawdata + 12 + 4 + 8 + 2048, 280);
-			
-			//bufptr += 280;
-			//bufsize += 280;
-
-			memcpy(bufptr, rawdata + 12 + 4 + 8 + 2048, 288);
+			// MODE1: EDC (4) + Reserved (8) + ECC (276)
+			memcpy(bufptr, rawdata + 12 + 4 + 2048, 288);
 			bufptr += 288;
 			bufsize += 288;
 		}
@@ -1466,7 +1466,6 @@ static void atapi_cmd_readtoc(IDEDRV drv) {
 		}
 		//senddata(drv, (tracks * 8) + 12, leng);
 		senddata(drv, 2 + datasize, leng);
-		drv->media &= ~IDEIO_MEDIA_CHANGED;
 		break;
 
 	case 1:	// multi session
@@ -1482,7 +1481,6 @@ static void atapi_cmd_readtoc(IDEDRV drv) {
 		else
 			storelba(drv->buf + 8, (UINT32)(0));
 		senddata(drv, 12, leng);
-		drv->media &= ~IDEIO_MEDIA_CHANGED;
 		break;
 
 	default:
@@ -1641,6 +1639,9 @@ void atapi_deinitialize(void) {
 		CloseHandle(atapi_thread_event_complete);
 		CloseHandle(atapi_thread_event_request);
 		atapi_thread = NULL;
+		atapi_dataread_pending = FALSE;
+		atapi_dataread_error = -1;
+		atapi_thread_drv = NULL;
 	}
 #else
 	// TODO: 非Windows用コードを書く

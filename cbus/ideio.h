@@ -5,7 +5,7 @@
 #define	IDEIO_MEDIA_EJECTABLE	(1 << 7)
 #define	IDEIO_MEDIA_PREVENT		(1 << 6)
 #define	IDEIO_MEDIA_PERSIST		(1 << 5)
-//								(1 << 4)
+#define	IDEIO_MEDIA_REMOVED		(1 << 4)	// Žæ‚èŠO‚µ’Ê’m‘Ò‚¿
 #define	IDEIO_MEDIA_AUDIO		(1 << 3)
 #define	IDEIO_MEDIA_DATA		(1 << 2)
 #define	IDEIO_MEDIA_CHANGED		(1 << 1)
@@ -201,7 +201,6 @@ void ideio_bindCDDA(void);
 void ideio_bind(void);
 void ideio_notify(REG8 sxsidrv, UINT action);
 void ideioint(NEVENTITEM item);
-void ideio_mediachange(REG8 sxsidrv);
 
 void ideio_setcursec(FILEPOS pos);
 
