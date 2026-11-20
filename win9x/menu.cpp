@@ -384,6 +384,14 @@ void xmenu_update(HMENU hMenu)
 	CheckMenuItem(hMenu, IDM_USENUMLOCK, MF_BYCOMMAND | MFCHECK(np2oscfg.USENUMLOCK));
 	CheckMenuItem(hMenu, IDM_SWAPPAGEUPDOWN, MF_BYCOMMAND | MFCHECK(np2oscfg.xrollkey));
 
+#if defined(SUPPORT_NPCLIP)
+	HMENU clipmenu;
+	if (menu_searchmenu(hMenu, IDM_CLIPSHARE_OFF, &clipmenu, NULL)) {
+		CheckMenuRadioItem(clipmenu, IDM_CLIPSHARE_OFF, IDM_CLIPSHARE_BOTH,
+			IDM_CLIPSHARE_OFF + np2oscfg.clipshare, MF_BYCOMMAND);
+	}
+#endif
+
 	// Device-Sound
 	const UINT8 BEEP_VOL = np2cfg.BEEP_VOL;
 	CheckMenuItem(hMenu, IDM_BEEPOFF, MF_BYCOMMAND | MFCHECK(BEEP_VOL == 0));

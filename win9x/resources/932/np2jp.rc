@@ -1179,7 +1179,20 @@ BEGIN
             MENUITEM "メカニカル &GRPHキー",        IDM_XGRPH
             MENUITEM SEPARATOR
             MENUITEM "Ctrl+Alt+Del 送信",           IDM_SENDCAD
+            MENUITEM SEPARATOR
+            MENUITEM "テキストVRAMをコピー(&T)",            IDM_COPYPASTE_COPYTVRAM
+            MENUITEM "98グラフィック画面をコピー(&9)",       IDM_COPYPASTE_COPYGVRAM
+            MENUITEM "アクセラレータ画面をコピー(&W)",       IDM_COPYPASTE_COPYWABMEM
             MENUITEM "クリップボードテキスト貼り付け",		IDM_COPYPASTE_PASTE
+#if defined(SUPPORT_NPCLIP)
+            POPUP "クリップボード共有"
+            BEGIN
+                MENUITEM "無効", IDM_CLIPSHARE_OFF
+                MENUITEM "ホスト → ゲスト", IDM_CLIPSHARE_H2G
+                MENUITEM "ゲスト → ホスト", IDM_CLIPSHARE_G2H
+                MENUITEM "双方向", IDM_CLIPSHARE_BOTH
+            END
+#endif
             MENUITEM SEPARATOR
             MENUITEM "F12 = マウスキャプチャ(&M)",  IDM_F12MOUSE
             MENUITEM "F12 = Co&py",                 IDM_F12COPY

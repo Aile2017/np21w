@@ -58,7 +58,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories=".\;.\x86;..\;..\common;..\i386c;..\mem;..\io;..\cbus;..\vram;..\sound;..\generic;..\zlib"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_IDEIO;SUPPORT_LARGE_HDD;SUPPORT_NET;SUPPORT_LGY98;SUPPORT_WAB;SUPPORT_CL_GD5430;SUPPORT_HRTIMER;SUPPORT_VPCVHD;SUPPORT_KAI_IMAGES;HOOK_SYSKEY;ALLOW_MULTIRUN;USE_FPU"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_NPCLIP;SUPPORT_IDEIO;SUPPORT_LARGE_HDD;SUPPORT_NET;SUPPORT_LGY98;SUPPORT_WAB;SUPPORT_CL_GD5430;SUPPORT_HRTIMER;SUPPORT_VPCVHD;SUPPORT_KAI_IMAGES;HOOK_SYSKEY;ALLOW_MULTIRUN;USE_FPU"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -72,7 +72,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_UNICODE;UNICODE;SUPPORT_PC9821"
+				PreprocessorDefinitions="_UNICODE;UNICODE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -142,7 +142,7 @@
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
 				AdditionalIncludeDirectories=".\;.\x86;..\;..\common;..\i386c;..\mem;..\io;..\cbus;..\vram;..\sound;..\generic;..\zlib"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_IDEIO;SUPPORT_LARGE_HDD;SUPPORT_NET;SUPPORT_LGY98;SUPPORT_WAB;SUPPORT_CL_GD5430;SUPPORT_HRTIMER;SUPPORT_VPCVHD;SUPPORT_KAI_IMAGES;HOOK_SYSKEY;ALLOW_MULTIRUN;USE_FPU"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_NPCLIP;SUPPORT_IDEIO;SUPPORT_LARGE_HDD;SUPPORT_NET;SUPPORT_LGY98;SUPPORT_WAB;SUPPORT_CL_GD5430;SUPPORT_HRTIMER;SUPPORT_VPCVHD;SUPPORT_KAI_IMAGES;HOOK_SYSKEY;ALLOW_MULTIRUN;USE_FPU"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -155,7 +155,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_UNICODE;UNICODE;SUPPORT_PC9821"
+				PreprocessorDefinitions="_UNICODE;UNICODE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -225,7 +225,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories=".\;.\x64;..\;..\common;..\i386c;..\mem;..\io;..\cbus;..\vram;..\sound;..\generic;..\zlib"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -239,7 +239,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_WIN64;_UNICODE;UNICODE;SUPPORT_PC9821"
+				PreprocessorDefinitions="_WIN64;_UNICODE;UNICODE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -310,7 +310,7 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories=".\;.\x64;..\;..\common;..\i386c;..\mem;..\io;..\cbus;..\vram;..\sound;..\generic;..\zlib"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -323,7 +323,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_WIN64;_UNICODE;UNICODE;SUPPORT_PC9821"
+				PreprocessorDefinitions="_WIN64;_UNICODE;UNICODE;SUPPORT_PC9821;SUPPORT_NPCLIP"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -977,6 +977,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\io\npclipio.c"
+					>
+				</File>
+				<File
 					RelativePath="..\io\pcidev.c"
 					>
 				</File>
@@ -1350,6 +1354,10 @@
 				</File>
 				<File
 					RelativePath=".\menu.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\clipmng.cpp"
 					>
 				</File>
 				<File
@@ -2507,6 +2515,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\io\npclipio.h"
+					>
+				</File>
+				<File
 					RelativePath="..\io\pcidev.h"
 					>
 				</File>
@@ -2780,6 +2792,10 @@
 				</File>
 				<File
 					RelativePath=".\menu.h"
+					>
+				</File>
+				<File
+					RelativePath=".\clipmng.h"
 					>
 				</File>
 				<File

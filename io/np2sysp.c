@@ -7,6 +7,7 @@
 #include	"cpucore.h"
 #include	"pccore.h"
 #include	"iocore.h"
+#include	"npclipio.h"
 #include	"font/font.h"
 #include	"bios/sxsibios.h"
 #if defined(SUPPORT_HOSTDRV)
@@ -904,7 +905,18 @@ static const OEMCHAR str_syspcredit[] = OEMTEXT(NP2SYSP_CREDIT);
 #endif
 
 
+#if defined(SUPPORT_NPCLIP)
+static void np2sysp_npclip(const void *arg1, long arg2) {
+	setoutstr(npclipio_available() ? OEMTEXT("NPCL0101") : OEMTEXT("NOCL"));
+	(void)arg1;
+	(void)arg2;
+}
+#endif
+
 static const SYSPCMD np2spcmd[] = {
+#if defined(SUPPORT_NPCLIP)
+			{"npclip", np2sysp_npclip, NULL, 0},
+#endif
 			{cmd_np2,		np2sysp_outstr,		rep_np2,		0},
 			{cmd_ver,		np2sysp_outstr,		str_syspver,	0},
 
@@ -1077,6 +1089,13 @@ void np2sysp_bind(void) {
 #if defined(SUPPORT_NPJOY)
 	iocore_attachinp(NPJOY_IO_STATUS, npjoy_iport_status);
 	iocore_attachinp(NPJOY_IO_DATA, npjoy_iport_data);
+#endif
+#if defined(SUPPORT_NPCLIP)
+	npclipio_set_available(
+		iocore_attachout(NPCLIP_IO_COMMAND, npclipio_command) == SUCCESS &&
+		iocore_attachout(NPCLIP_IO_DATA, npclipio_write) == SUCCESS &&
+		iocore_attachinp(NPCLIP_IO_STATUS, npclipio_status) == SUCCESS &&
+		iocore_attachinp(NPCLIP_IO_DATA, npclipio_read) == SUCCESS);
 #endif
 
 	// ëºÅA

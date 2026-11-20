@@ -40,6 +40,9 @@
 #endif	// defined(SUPPORT_VSTi)
 #include "joymng.h"
 #include "mousemng.h"
+#if defined(SUPPORT_NPCLIP)
+#include "clipmng.h"
+#endif
 #include "scrnmng.h"
 #include "soundmng.h"
 #if defined(SUPPORT_WASAPI)
@@ -233,7 +236,10 @@ static	TCHAR		szClassName[] = _T("NP2-MainWindow");
 						1, 0, 1, 0,
 						OEMTEXT(""), OEMTEXT(""), 1,
 						{2, 8, 16, 30, 42, 52, 62},
-						{50, 75, 100, 150, 200, 400, 800}
+						{50, 75, 100, 150, 200, 400, 800},
+#if defined(SUPPORT_NPCLIP)
+						0,
+#endif
 					};
 
 		OEMCHAR		fddfolder[MAX_PATH];
@@ -2224,6 +2230,18 @@ static void OnCommand(HWND hWnd, WPARAM wParam)
 			}
 			break;
 
+#if defined(SUPPORT_NPCLIP)
+		case IDM_CLIPSHARE_OFF:
+		case IDM_CLIPSHARE_H2G:
+		case IDM_CLIPSHARE_G2H:
+		case IDM_CLIPSHARE_BOTH:
+			if (clipmng_setmode((UINT8)(uID - IDM_CLIPSHARE_OFF))) {
+				np2oscfg.clipshare = (UINT8)(uID - IDM_CLIPSHARE_OFF);
+				sysmng_update(SYS_UPDATEOSCFG);
+			}
+			break;
+#endif
+
 		case IDM_COPYPASTE_COPYTVRAM:
 			{
 				HGLOBAL hMem;
@@ -3403,6 +3421,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			break;
 
 		case WM_DESTROY:
+#if defined(SUPPORT_NPCLIP)
+			clipmng_setmode(0);
+#endif
 			np2class_wmdestroy(hWnd);
 			PostQuitMessage(0);
 			break;
@@ -4013,6 +4034,9 @@ void unloadNP2INI(){
 	np2_multithread_Suspend();
 
 	sxsi_alltrash();
+#if defined(SUPPORT_NPCLIP)
+	clipmng_setmode(0);
+#endif
 	pccore_term();
 
 	CSoundMng::GetInstance()->Close();
@@ -4294,6 +4318,12 @@ void loadNP2INI(const OEMCHAR *fname){
 
 	scrndraw_redraw();
 	
+#if defined(SUPPORT_NPCLIP)
+	if (!clipmng_setmode(np2oscfg.clipshare)) {
+		np2oscfg.clipshare = 0;
+		clipmng_setmode(0);
+	}
+#endif
 	np2opening = 0;
 
 	sysmng_workclockreset();
@@ -4792,6 +4822,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #ifdef OPENING_WAIT
 	while((GetTickCount() - tick) < OPENING_WAIT);
 #endif
+#if defined(SUPPORT_NPCLIP)
+	clipmng_initialize(hWnd);
+	if (!clipmng_setmode(np2oscfg.clipshare)) {
+		np2oscfg.clipshare = 0;
+		clipmng_setmode(0);
+	}
+#endif
 	np2opening = 0;
 
 	scrndraw_redraw();
@@ -5025,6 +5062,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst,
 #endif
 
 	pccore_term();
+#if defined(SUPPORT_NPCLIP)
+	clipmng_deinitialize();
+#endif
 
 #ifdef SUPPORT_WAB
 	np2wab_shutdown();

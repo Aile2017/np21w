@@ -1188,7 +1188,20 @@ BEGIN
             MENUITEM "mechanical &GRPH",            IDM_XGRPH
             MENUITEM SEPARATOR
             MENUITEM "Send Ctrl+Alt+Del",           IDM_SENDCAD
+            MENUITEM SEPARATOR
+            MENUITEM "Copy &Text V-RAM",            IDM_COPYPASTE_COPYTVRAM
+            MENUITEM "Copy &98 Screen",             IDM_COPYPASTE_COPYGVRAM
+            MENUITEM "Copy &WAB Screen",            IDM_COPYPASTE_COPYWABMEM
             MENUITEM "Paste Clipboard Text",		IDM_COPYPASTE_PASTE
+#if defined(SUPPORT_NPCLIP)
+            POPUP "Clipboard Sharing"
+            BEGIN
+                MENUITEM "Disabled", IDM_CLIPSHARE_OFF
+                MENUITEM "Host to Guest", IDM_CLIPSHARE_H2G
+                MENUITEM "Guest to Host", IDM_CLIPSHARE_G2H
+                MENUITEM "Bidirectional", IDM_CLIPSHARE_BOTH
+            END
+#endif
             MENUITEM SEPARATOR
             MENUITEM "F12 = &Mouse",                IDM_F12MOUSE
             MENUITEM "F12 = Co&py",                 IDM_F12COPY

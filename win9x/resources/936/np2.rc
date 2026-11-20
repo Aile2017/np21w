@@ -1188,7 +1188,20 @@ BEGIN
             MENUITEM "机械 &GRPH 键",            IDM_XGRPH
             MENUITEM SEPARATOR
             MENUITEM "传送 Ctrl+Alt+Del",           IDM_SENDCAD
+            MENUITEM SEPARATOR
+            MENUITEM "复制文字 V-RAM(&T)",            IDM_COPYPASTE_COPYTVRAM
+            MENUITEM "复制 98 画面(&9)",             IDM_COPYPASTE_COPYGVRAM
+            MENUITEM "复制 WAB 画面(&W)",            IDM_COPYPASTE_COPYWABMEM
             MENUITEM "粘贴剪贴板文本",		IDM_COPYPASTE_PASTE
+#if defined(SUPPORT_NPCLIP)
+            POPUP "剪贴板共享"
+            BEGIN
+                MENUITEM "禁用", IDM_CLIPSHARE_OFF
+                MENUITEM "主机到客户机", IDM_CLIPSHARE_H2G
+                MENUITEM "客户机到主机", IDM_CLIPSHARE_G2H
+                MENUITEM "双向", IDM_CLIPSHARE_BOTH
+            END
+#endif
             MENUITEM SEPARATOR
             MENUITEM "F12 = 鼠标(&M)",                IDM_F12MOUSE
             MENUITEM "F12 = 复制(&P)",                 IDM_F12COPY

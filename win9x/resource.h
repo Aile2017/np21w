@@ -943,6 +943,10 @@
 #define IDM_COPYPASTE_COPYGVRAM         43202
 #define IDM_COPYPASTE_COPYWABMEM        43203
 #define IDM_COPYPASTE_PASTE             43210
+#define IDM_CLIPSHARE_OFF              43211
+#define IDM_CLIPSHARE_H2G              43212
+#define IDM_CLIPSHARE_G2H              43213
+#define IDM_CLIPSHARE_BOTH             43214
 #define IDM_WABSYSMENU_RESETSIZE        43301
 #define IDM_WABSYSMENU_HALFTONE         43302
 #define IDM_IDE0PHYSICALDRV_ID0         43400 // size = 26*4

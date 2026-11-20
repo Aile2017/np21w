@@ -16,6 +16,7 @@
 #include	"cpucore.h"
 #include	"pccore.h"
 #include	"iocore.h"
+#include	"npclipio.h"
 #include	"gdc_sub.h"
 #include	"cbuscore.h"
 #include	"pc9861k.h"
@@ -591,6 +592,9 @@ void pccore_term(void) {
 	ideio_deinitialize();
 #endif
 
+#if defined(SUPPORT_NPCLIP)
+	npclipio_set_available(FALSE);
+#endif
 	iocore_destroy();
 
 	pc9861k_deinitialize();
@@ -1527,6 +1531,9 @@ void pccore_exec(BOOL draw) {
 		if (CPU_RESETREQ) {
 #endif
 			CPU_RESETREQ = 0;
+#if defined(SUPPORT_NPCLIP)
+			npclipio_reset();
+#endif
 #if defined(SUPPORT_WAB)
 			np2wab.relaystateint = np2wab.relaystateext = 0;
 			np2wab_setRelayState(0); // XXX:

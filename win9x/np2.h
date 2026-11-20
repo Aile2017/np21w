@@ -175,6 +175,9 @@ typedef struct {
 
 	UINT16	cpumullst[8]; // CPUクロック倍率リスト
 	UINT16	cpuspdlst[9]; // CPUスピードリスト
+#if defined(SUPPORT_NPCLIP)
+	UINT8	clipshare;
+#endif
 } NP2OSCFG;
 
 

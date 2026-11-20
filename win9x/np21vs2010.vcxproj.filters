@@ -762,6 +762,9 @@
     <ClCompile Include="..\io\np2sysp.c">
       <Filter>ソース ファイル\io</Filter>
     </ClCompile>
+    <ClCompile Include="..\io\npclipio.c">
+      <Filter>ソース ファイル\io</Filter>
+    </ClCompile>
     <ClCompile Include="..\io\pcidev.c">
       <Filter>ソース ファイル\io</Filter>
     </ClCompile>
@@ -988,6 +991,9 @@
       <Filter>ソース ファイル\win9x</Filter>
     </ClCompile>
     <ClCompile Include="menu.cpp">
+      <Filter>ソース ファイル\win9x</Filter>
+    </ClCompile>
+    <ClCompile Include="clipmng.cpp">
       <Filter>ソース ファイル\win9x</Filter>
     </ClCompile>
     <ClCompile Include="mousemng.cpp">
@@ -2824,6 +2830,9 @@
     <ClInclude Include="..\io\np2sysp.h">
       <Filter>ヘッダー ファイル\io</Filter>
     </ClInclude>
+    <ClInclude Include="..\io\npclipio.h">
+      <Filter>ヘッダー ファイル\io</Filter>
+    </ClInclude>
     <ClInclude Include="..\io\pcidev.h">
       <Filter>ヘッダー ファイル\io</Filter>
     </ClInclude>
@@ -3035,6 +3044,9 @@
       <Filter>ヘッダー ファイル\win9x</Filter>
     </ClInclude>
     <ClInclude Include="menu.h">
+      <Filter>ヘッダー ファイル\win9x</Filter>
+    </ClInclude>
+    <ClInclude Include="clipmng.h">
       <Filter>ヘッダー ファイル\win9x</Filter>
     </ClInclude>
     <ClInclude Include="mousemng.h">

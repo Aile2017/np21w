@@ -1188,7 +1188,20 @@ BEGIN
             MENUITEM "機械 &GRPH 鍵",            IDM_XGRPH
             MENUITEM SEPARATOR
             MENUITEM "傳送 Ctrl+Alt+Del",           IDM_SENDCAD
+            MENUITEM SEPARATOR
+            MENUITEM "複製文字 V-RAM(&T)",            IDM_COPYPASTE_COPYTVRAM
+            MENUITEM "複製 98 畫面(&9)",             IDM_COPYPASTE_COPYGVRAM
+            MENUITEM "複製 WAB 畫面(&W)",            IDM_COPYPASTE_COPYWABMEM
             MENUITEM "貼上剪貼簿文字",		IDM_COPYPASTE_PASTE
+#if defined(SUPPORT_NPCLIP)
+            POPUP "剪貼簿共享"
+            BEGIN
+                MENUITEM "停用", IDM_CLIPSHARE_OFF
+                MENUITEM "主機到客體", IDM_CLIPSHARE_H2G
+                MENUITEM "客體到主機", IDM_CLIPSHARE_G2H
+                MENUITEM "雙向", IDM_CLIPSHARE_BOTH
+            END
+#endif
             MENUITEM SEPARATOR
             MENUITEM "F12 = 滑鼠(&M)",                IDM_F12MOUSE
             MENUITEM "F12 = 複製(&P)",                 IDM_F12COPY

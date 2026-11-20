@@ -936,6 +936,9 @@ static const PFTBL s_IniItems[] =
 	PFVAL("midiasns", PFRO_BOOL,		&np2oscfg.midiasns), // MIDI Active Sensingを送る
 	PFVAL("midiaint", PFRO_SINT32,		&np2oscfg.midiaint), // MIDI Active Sensingを送る間隔（ミリ秒）
 
+#if defined(SUPPORT_NPCLIP)
+	PFVAL("CLIPSHAR", PFTYPE_UINT8,		&np2oscfg.clipshare),
+#endif
 	PFVAL("knjpaste", PFTYPE_UINT8,		&np2oscfg.knjpaste), // クリップボードからテキスト貼り付けの際の漢字の扱い（0=漢字無視, 1=BASIC, 2=FEPなしDOS）
 	PFVAL("scrscfix", PFRO_UINT8,		&np2oscfg.scrscfix), // 画面拡大転送時の補正（0=自動, 1=通常転送, 2=NVDIA向け）
 	PFVAL("dirfdlst", PFRO_BOOL,		&np2oscfg.dirfdlst), // 同じディレクトリにあるFDイメージファイルのリストを表示する
@@ -985,7 +988,15 @@ void initload(void)
 	TCHAR szPath[MAX_PATH];
 
 	initgetfile(szPath, _countof(szPath));
+#if defined(SUPPORT_NPCLIP)
+	np2oscfg.clipshare = 0;
+#endif
 	ini_read(szPath, s_szIniTitle, s_IniItems, _countof(s_IniItems));
+#if defined(SUPPORT_NPCLIP)
+	if (np2oscfg.clipshare > 3) {
+		np2oscfg.clipshare = 0;
+	}
+#endif
 }
 
 /**
