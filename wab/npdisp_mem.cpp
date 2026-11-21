@@ -642,7 +642,7 @@ static UINT8* npdisp_w2k_ramEntry(UINT32 addr)
 	return page ? page + (addr & CPU_PAGE_MASK) : NULL;
 }
 
-static UINT8* npdisp_w2k_linearPage(UINT32 addr, bool write)
+static UINT8* npdisp_w2k_linearPage(UINT32 addr, bool write, bool touch = true)
 {
 	UINT32 physical = addr;
 	UINT8* pdePtr = NULL;
@@ -676,8 +676,8 @@ static UINT8* npdisp_w2k_linearPage(UINT32 addr, bool write)
 	}
 	page = npdisp_w2k_ramEntry(physical);
 	if (!page) return NULL;
-	if (pdePtr && (pde & pdeBits) != pdeBits) STOREINTELDWORD(pdePtr, pde | pdeBits);
-	if (ptePtr && (pte & pteBits) != pteBits) STOREINTELDWORD(ptePtr, pte | pteBits);
+	if (touch && pdePtr && (pde & pdeBits) != pdeBits) STOREINTELDWORD(pdePtr, pde | pdeBits);
+	if (touch && ptePtr && (pte & pteBits) != pteBits) STOREINTELDWORD(ptePtr, pte | pteBits);
 	return page;
 }
 
@@ -697,6 +697,71 @@ static int npdisp_w2k_transferLinearMemory(UINT32 addr, void* buffer, UINT32 siz
 	}
 	return 1;
 }
+
+// Validate the actual pages without copying pixels or invoking CPU exceptions.
+// Rows may be bottom-up or have padding which must not be accessed.
+int npdisp_w2k_checkLinearRows(UINT32 addr, SINT32 stride, UINT32 rowBytes, UINT32 rows, int write)
+{
+	UINT32 lastPage = 0;
+	bool havePage = false;
+	if (!addr || !rowBytes || !rows || rows > 0x7fffffffUL) return 0;
+	for (UINT32 y = 0; y < rows; ++y) {
+		SINT64 start = (SINT64)addr + (SINT64)y * stride;
+		if (start <= 0 || (UINT64)start + rowBytes > 0x100000000ULL) return 0;
+		UINT64 end = (UINT64)start + rowBytes;
+		for (UINT64 p = (UINT64)start & ~((UINT64)CPU_PAGE_MASK); p < end; p += CPU_PAGE_SIZE) {
+			if (!havePage || lastPage != (UINT32)p) {
+				if (!npdisp_w2k_linearPage((UINT32)p, write != 0, false)) return 0;
+				lastPage = (UINT32)p;
+				havePage = true;
+			}
+		}
+	}
+	return 1;
+}
+
+int npdisp_w2k_readLinearRam(UINT32 addr, void *dst, UINT32 size)
+{
+	return addr && dst && size && npdisp_w2k_transferLinearMemory(addr, dst, size, false);
+}
+
+int npdisp_w2k_readLinearRows(UINT32 addr, SINT32 stride, void *dst, UINT32 dstStride, UINT32 rowBytes, UINT32 rows)
+{
+	UINT32 lastPage = 0;
+	UINT8 *page = NULL;
+	if (!addr || !dst || !rowBytes || !rows || rows > 0x7fffffffUL || dstStride < rowBytes ||
+		(UINT64)(rows - 1) * dstStride + rowBytes > (size_t)-1) return 0;
+	for (UINT32 y = 0; y < rows; ++y) {
+		SINT64 start = (SINT64)addr + (SINT64)y * stride;
+		if (start <= 0 || (UINT64)start + rowBytes > 0x100000000ULL) return 0;
+		UINT32 linear = (UINT32)start;
+		UINT32 remain = rowBytes;
+		UINT8 *out = (UINT8 *)dst + (size_t)y * dstStride;
+		while (remain) {
+			UINT32 base = linear & ~CPU_PAGE_MASK;
+			UINT32 offset = linear & CPU_PAGE_MASK;
+			UINT32 chunk = min(remain, (UINT32)(CPU_PAGE_SIZE - offset));
+			if (!page || lastPage != base) {
+				page = npdisp_w2k_linearPage(base, false);
+				if (!page) return 0;
+				lastPage = base;
+			}
+			memcpy(out, page + offset, chunk);
+			out += chunk;
+			linear += chunk;
+			remain -= chunk;
+		}
+	}
+	return 1;
+}
+
+int npdisp_w2k_writeLinearRam(UINT32 addr, const void *src, UINT32 size)
+{
+	// Do not partially overwrite a response if a later page is absent.
+	return src && npdisp_w2k_checkLinearRows(addr, 0, size, 1, 1) &&
+		npdisp_w2k_transferLinearMemory(addr, (void *)src, size, true);
+}
+
 #endif
 
 // Reads a flat Win32 linear address without interpreting its high word as a selector.
@@ -706,7 +771,7 @@ int npdisp_readLinearMemory(void* dst, UINT32 linearAddr, int size)
 #if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
 	if (npdisp.w2kLfb) {
 		if (!linearAddr || !dst || size <= 0) return 0;
-		return npdisp_w2k_transferLinearMemory(linearAddr, dst, (UINT32)size, false);
+		return npdisp_w2k_readLinearRam(linearAddr, dst, (UINT32)size);
 	}
 #endif
 	if (!linearAddr || !dst || size <= 0 || npdisp.longjmpnum) return 0;
@@ -719,7 +784,7 @@ int npdisp_writeLinearMemory(void* src, UINT32 linearAddr, int size)
 #if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
 	if (npdisp.w2kLfb) {
 		if (!linearAddr || !src || size <= 0) return 0;
-		return npdisp_w2k_transferLinearMemory(linearAddr, src, (UINT32)size, true);
+		return npdisp_w2k_writeLinearRam(linearAddr, src, (UINT32)size);
 	}
 #endif
 	if (!linearAddr || !src || size <= 0 || npdisp.longjmpnum) return 0;

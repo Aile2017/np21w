@@ -103,7 +103,7 @@ static int npdisp_w2k_stretchBuildClipRects(UINT32 requestAddr, const NPDISP_W2K
 	clipBytes = (UINT64)request->clipRectCount * sizeof(NPDISP_W2K_RECT);
 	if (request->clipRectOffset < sizeof(*request) || request->clipRectOffset > request->size || clipBytes > request->size - request->clipRectOffset) return 0;
 	guestRects.resize(request->clipRectCount);
-	npdisp_w2k_guestRead(requestAddr + request->clipRectOffset, &guestRects[0], (UINT32)clipBytes);
+	if (!npdisp_w2k_guestRead(requestAddr + request->clipRectOffset, &guestRects[0], (UINT32)clipBytes)) return 0;
 	for (i = 0; i < request->clipRectCount; ++i) {
 		clipRect.left = guestRects[i].left + request->dstOriginX;
 		clipRect.top = guestRects[i].top + request->dstOriginY;
@@ -250,15 +250,13 @@ static int npdisp_w2k_stretchSnapshotSource(const NPDISP_W2K_HOSTCALL_GDI_REQUES
 		return 1;
 	}
 	if (request->arg[1] == 0) return 0;
-	npdisp_w2k_guestRead(request->arg[1], &surface, sizeof(surface));
+	if (!npdisp_w2k_guestRead(request->arg[1], &surface, sizeof(surface))) return 0;
 	if (!npdisp_w2k_stretchSurfaceFormat(&surface)) return 0;
 	if (srcRect->left < 0 || srcRect->top < 0 || srcRect->right > surface.width || srcRect->bottom > surface.height) return 0;
-	for (y = 0; y < height; ++y) {
-		UINT32 rowAddr;
-		if (!npdisp_w2k_stretchMemoryRowAddr(&surface, srcRect->left, srcRect->top + y, rowBytes, bytesPerPixel, &rowAddr)) return 0;
-		npdisp_w2k_guestRead(rowAddr, &(*source)[(size_t)y * rowBytes], rowBytes);
-	}
-	return 1;
+	UINT32 rowAddr, lastAddr;
+	if (!npdisp_w2k_stretchMemoryRowAddr(&surface, srcRect->left, srcRect->top, rowBytes, bytesPerPixel, &rowAddr) ||
+		!npdisp_w2k_stretchMemoryRowAddr(&surface, srcRect->left, srcRect->bottom - 1, rowBytes, bytesPerPixel, &lastAddr)) return 0;
+	return npdisp_w2k_guestReadStrided(rowAddr, surface.lDelta, &(*source)[0], rowBytes, rowBytes, (UINT32)height);
 }
 
 static void npdisp_w2k_stretchMarkDirty(NPDISP_W2K_STRETCH_DIRTY *dirty, const NPDISP_W2K_RECT *rect)
@@ -329,7 +327,7 @@ UINT32 npdisp_w2k_hostCallStretch(UINT32 requestAddr, const NPDISP_W2K_HOSTCALL_
 	}
 	else if (request->operation != NPDISP_W2K_GDI_STRETCH_BLT) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 	if (usesSource && !(request->surfaceFlags & NPDISP_W2K_GDI_XLATE_TRIVIAL)) return npdisp_w2k_stretchUnsupported(NPDISP_W2K_STRETCH_REJECT_XLATE);
-	npdisp_w2k_guestRead(request->arg[6], &guestDst, sizeof(guestDst));
+	if (!npdisp_w2k_guestRead(request->arg[6], &guestDst, sizeof(guestDst))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	dstRect.left = guestDst.left + request->dstOriginX;
 	dstRect.top = guestDst.top + request->dstOriginY;
 	dstRect.right = guestDst.right + request->dstOriginX;
@@ -341,7 +339,7 @@ UINT32 npdisp_w2k_hostCallStretch(UINT32 requestAddr, const NPDISP_W2K_HOSTCALL_
 	if (clipRects.empty()) return NPDISP_W2K_HOSTCALL_OK;
 	if (usesSource) {
 		if (request->arg[1] == 0 || request->arg[7] == 0) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
-		npdisp_w2k_guestRead(request->arg[7], &guestSrc, sizeof(guestSrc));
+		if (!npdisp_w2k_guestRead(request->arg[7], &guestSrc, sizeof(guestSrc))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		srcRect.left = guestSrc.left + ((request->surfaceFlags & NPDISP_W2K_GDI_SRC_SCREEN) ? request->srcOriginX : 0);
 		srcRect.top = guestSrc.top + ((request->surfaceFlags & NPDISP_W2K_GDI_SRC_SCREEN) ? request->srcOriginY : 0);
 		srcRect.right = guestSrc.right + ((request->surfaceFlags & NPDISP_W2K_GDI_SRC_SCREEN) ? request->srcOriginX : 0);

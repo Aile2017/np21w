@@ -124,7 +124,7 @@ static int npdisp_w2k_outputBuildClipRects(UINT32 requestAddr, const NPDISP_W2K_
 	if (request->clipRectCount == 0) return 1;
 	if (request->size < sizeof(*request) || request->clipRectCount > (request->size - sizeof(*request)) / sizeof(NPDISP_W2K_RECT)) return 0;
 	guestRects.resize(request->clipRectCount);
-	npdisp_w2k_guestRead(requestAddr + sizeof(*request), &guestRects[0], request->clipRectCount * sizeof(NPDISP_W2K_RECT));
+	if (!npdisp_w2k_guestRead(requestAddr + sizeof(*request), &guestRects[0], request->clipRectCount * sizeof(NPDISP_W2K_RECT))) return 0;
 	for (i = 0; i < request->clipRectCount; ++i) {
 		clipRect.left = guestRects[i].left + request->dstOriginX;
 		clipRect.top = guestRects[i].top + request->dstOriginY;
@@ -425,11 +425,11 @@ static int npdisp_w2k_outputReadPath(UINT32 requestAddr, const NPDISP_W2K_HOSTCA
 	if (pointsOffset + request->pathPointCount * sizeof(NPDISP_W2K_POINTFIX) > request->size) return 0;
 	if (request->pathRecordCount) {
 		records.resize(request->pathRecordCount);
-		npdisp_w2k_guestRead(requestAddr + recordsOffset, &records[0], request->pathRecordCount * sizeof(NPDISP_W2K_PATH_RECORD));
+		if (!npdisp_w2k_guestRead(requestAddr + recordsOffset, &records[0], request->pathRecordCount * sizeof(NPDISP_W2K_PATH_RECORD))) return 0;
 	}
 	if (request->pathPointCount) {
 		points.resize(request->pathPointCount);
-		npdisp_w2k_guestRead(requestAddr + pointsOffset, &points[0], request->pathPointCount * sizeof(NPDISP_W2K_POINTFIX));
+		if (!npdisp_w2k_guestRead(requestAddr + pointsOffset, &points[0], request->pathPointCount * sizeof(NPDISP_W2K_POINTFIX))) return 0;
 	}
 	for (i = 0; i < request->pathRecordCount; ++i) {
 		const NPDISP_W2K_PATH_RECORD *record = &records[i];
@@ -846,8 +846,8 @@ UINT32 npdisp_w2k_hostCallOutput(UINT32 requestAddr)
 	paths.clear();
 	if (!npdisp.w2kLfb || !npdisp.enabled || !npdispwin.pBits || npdispwin.stride == 0) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 	if (npdisp.bpp != 8 && npdisp.bpp != 16 && npdisp.bpp != 24 && npdisp.bpp != 32) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
-	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || request.command != NPDISP_W2K_HOSTCALL_OUTPUT ||
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || (UINT64)requestAddr + request.size > 0x100000000ULL || request.command != NPDISP_W2K_HOSTCALL_OUTPUT ||
 		!(request.surfaceFlags & NPDISP_W2K_OUTPUT_DST_SCREEN) || (request.operation & ~(NPDISP_W2K_OUTPUT_STROKE | NPDISP_W2K_OUTPUT_FILL)) != 0 || request.operation == 0) {
 		return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	}

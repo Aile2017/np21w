@@ -17,6 +17,7 @@
 #include "../npdisp.h"
 #include "npdisp_w2k.h"
 #include "npdisp_w2k_internal.h"
+#include "../npdisp_mem.h"
 #include "npdisp_w2k_pattern.h"
 
 extern NPDISP_WINDOWS npdispwin;
@@ -120,7 +121,7 @@ static int npdisp_w2k_bltBuildClipRects(UINT32 requestAddr, const NPDISP_W2K_HOS
 	if (request->clipType != NPDISP_W2K_CLIP_COMPLEX || request->clipRectCount == 0 || request->clipRectCount > NPDISP_W2K_MAX_CLIP_RECTS) return 0;
 	if (request->size < sizeof(*request) || request->clipRectCount > (request->size - sizeof(*request)) / sizeof(NPDISP_W2K_RECT)) return 0;
 	guestRects.resize(request->clipRectCount);
-	npdisp_w2k_guestRead(requestAddr + sizeof(*request), &guestRects[0], request->clipRectCount * sizeof(NPDISP_W2K_RECT));
+	if (!npdisp_w2k_guestRead(requestAddr + sizeof(*request), &guestRects[0], request->clipRectCount * sizeof(NPDISP_W2K_RECT))) return 0;
 	for (i = 0; i < request->clipRectCount; ++i) {
 		clipRect.left = guestRects[i].left + request->dstOriginX;
 		clipRect.top = guestRects[i].top + request->dstOriginY;
@@ -362,7 +363,14 @@ static int npdisp_w2k_bltValidateMemoryAddresses(const std::vector<NPDISP_W2K_RE
 		UINT32 rowBytes = (UINT32)width * bytesPerPixel;
 		UINT32 rowAddr;
 		if (!npdisp_w2k_bltMemoryRowAddr(surface, sx, sy, rowBytes, bytesPerPixel, &rowAddr)) return 0;
-		if (height > 1 && !npdisp_w2k_bltMemoryRowAddr(surface, sx, sy + height - 1, rowBytes, bytesPerPixel, &rowAddr)) return 0;
+		UINT32 lastAddr;
+		if (height > 1 && !npdisp_w2k_bltMemoryRowAddr(surface, sx, sy + height - 1, rowBytes, bytesPerPixel, &lastAddr)) return 0;
+#if defined(CPUCORE_IA32)
+		// Preflight all source pages before changing the destination (non-idempotent ROPs).
+		if (!npdisp_w2k_checkLinearRows(rowAddr, surface->lDelta, rowBytes, (UINT32)height, 0)) return 0;
+#else
+		return 0;
+#endif
 	}
 	return 1;
 }
@@ -522,14 +530,14 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 	if (!npdisp.w2kLfb || !npdisp.enabled || !npdispwin.pBits || npdispwin.stride == 0) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 	if (npdisp.bpp != 8 && npdisp.bpp != 16 && npdisp.bpp != 24 && npdisp.bpp != 32) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
-	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || request.command != NPDISP_W2K_HOSTCALL_BITBLT ||
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || (UINT64)requestAddr + request.size > 0x100000000ULL || request.command != NPDISP_W2K_HOSTCALL_BITBLT ||
 		!(request.surfaceFlags & NPDISP_W2K_BITBLT_DST_SCREEN) || request.dstSurfaceAddr == 0 || request.dstRectAddr == 0 ||
 		!npdisp_w2k_bltRopInfo(request.rop4, &rop, &usesSource, &usesPattern)) {
 		return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 	}
 
-	npdisp_w2k_guestRead(request.dstRectAddr, &guestDstRect, sizeof(guestDstRect));
+	if (!npdisp_w2k_guestRead(request.dstRectAddr, &guestDstRect, sizeof(guestDstRect))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	width = guestDstRect.right - guestDstRect.left;
 	height = guestDstRect.bottom - guestDstRect.top;
 	if (width <= 0 || height <= 0) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
@@ -547,12 +555,12 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 
 	if (usesPattern) {
 		if (!request.brushObjAddr) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-		npdisp_w2k_guestRead(request.brushObjAddr, &brush, sizeof(brush));
+		if (!npdisp_w2k_guestRead(request.brushObjAddr, &brush, sizeof(brush))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		if (brush.iSolidColor == 0xffffffffUL) {
 			if (!npdisp_w2k_patternLoad(request.brushObjAddr, &realizedPattern)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 			useRealizedPattern = 1;
 			if (request.brushPointAddr) {
-				npdisp_w2k_guestRead(request.brushPointAddr, &brushPoint, sizeof(brushPoint));
+				if (!npdisp_w2k_guestRead(request.brushPointAddr, &brushPoint, sizeof(brushPoint))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 				patternOriginX = brushPoint.x + request.dstOriginX;
 				patternOriginY = brushPoint.y + request.dstOriginY;
 			}
@@ -566,7 +574,7 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 
 	if (usesSource) {
 		if (!request.srcSurfaceAddr || !request.srcPointAddr || !(request.surfaceFlags & NPDISP_W2K_BITBLT_XLATE_TRIVIAL)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-		npdisp_w2k_guestRead(request.srcPointAddr, &srcPoint, sizeof(srcPoint));
+		if (!npdisp_w2k_guestRead(request.srcPointAddr, &srcPoint, sizeof(srcPoint))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		if (request.surfaceFlags & NPDISP_W2K_BITBLT_SRC_SCREEN) {
 			srcIsScreen = 1;
 			srcX = srcPoint.x + request.srcOriginX;
@@ -580,7 +588,7 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 		}
 		else {
 			srcIsMemory = 1;
-			npdisp_w2k_guestRead(request.srcSurfaceAddr, &srcSurface, sizeof(srcSurface));
+			if (!npdisp_w2k_guestRead(request.srcSurfaceAddr, &srcSurface, sizeof(srcSurface))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 			if (!npdisp_w2k_bltSurfaceFormat(&srcSurface)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 			srcX = srcPoint.x;
 			srcY = srcPoint.y;
@@ -616,7 +624,7 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 			UINT32 rowAddr;
 			UINT8 *dst = (UINT8 *)npdispwin.pBits + (UINT32)rect->top * npdispwin.stride + (UINT32)rect->left * bytesPerPixel;
 			if (!npdisp_w2k_bltMemoryRowAddr(&srcSurface, sourceRectX, sourceRectY, rowBytes, bytesPerPixel, &rowAddr)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-			npdisp_w2k_guestReadStrided(rowAddr, srcSurface.lDelta, dst, npdispwin.stride, rowBytes, (UINT32)rectHeight);
+			if (!npdisp_w2k_guestReadStrided(rowAddr, srcSurface.lDelta, dst, npdispwin.stride, rowBytes, (UINT32)rectHeight)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 			npdisp_w2k_traceBitBltBatch(1, (UINT64)rowBytes * (UINT32)rectHeight);
 			continue;
 		}
@@ -637,7 +645,7 @@ UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr)
 			else if (srcIsMemory) {
 				UINT32 rowAddr;
 				if (!npdisp_w2k_bltMemoryRowAddr(&srcSurface, sourceRectX, sourceRectY + y, rowBytes, bytesPerPixel, &rowAddr)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-				npdisp_w2k_guestRead(rowAddr, &npdisp_w2k_bltRowScratch[0], rowBytes);
+				if (!npdisp_w2k_guestRead(rowAddr, &npdisp_w2k_bltRowScratch[0], rowBytes)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 				src = &npdisp_w2k_bltRowScratch[0];
 			}
 			if (useRealizedPattern) npdisp_w2k_bltApplyPatternRow(dst, src, rectWidth, bytesPerPixel, &realizedPattern, rect->left, rect->top + y, patternOriginX, patternOriginY, rop, pixelMask);

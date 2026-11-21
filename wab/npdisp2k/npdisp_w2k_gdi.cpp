@@ -17,10 +17,10 @@ UINT32 npdisp_w2k_hostCallGdi(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_GDI_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) ||
 		request.command != NPDISP_W2K_HOSTCALL_GDI) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
-	if (request.size > 0x01000000UL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (request.size > 0x01000000UL || (UINT64)requestAddr + request.size > 0x100000000ULL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 
 	UINT32 status;
 

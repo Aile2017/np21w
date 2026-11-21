@@ -27,6 +27,12 @@ extern "C" {
 	int npdisp_preloadMemory(UINT32 lpAddr, int size);
 	int npdisp_readMemoryWith32Offset(void* dst, UINT16 selector, UINT32 offset, int size);
 	int npdisp_readMemory(void* dst, UINT32 lpAddr, int size);
+#if defined(SUPPORT_NPDISP_W2K) && defined(CPUCORE_IA32)
+	int npdisp_w2k_checkLinearRows(UINT32 addr, SINT32 stride, UINT32 rowBytes, UINT32 rows, int write);
+	int npdisp_w2k_readLinearRam(UINT32 addr, void *dst, UINT32 size);
+	int npdisp_w2k_readLinearRows(UINT32 addr, SINT32 stride, void *dst, UINT32 dstStride, UINT32 rowBytes, UINT32 rows);
+	int npdisp_w2k_writeLinearRam(UINT32 addr, const void *src, UINT32 size);
+#endif
 	int npdisp_readLinearMemory(void* dst, UINT32 linearAddr, int size);
 	int npdisp_writeLinearMemory(void* src, UINT32 linearAddr, int size);
 	int npdisp_writeMemoryWith32Offset(void* src, UINT16 selector, UINT32 offset, int size);

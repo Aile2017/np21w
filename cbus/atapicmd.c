@@ -31,6 +31,9 @@ static void trace_fmt_ex(const char* fmt, ...)
 #include	"ideio.h"
 #include	"atapicmd.h"
 #include	"fdd/sxsi.h"
+#ifdef SUPPORT_KAI_IMAGES
+#include	"diskimage/cddfile.h"
+#endif
 
 #define	YUIDEBUG
 
@@ -585,7 +588,6 @@ void atapi_dataread_asyncwait(int wait) {
 			drv->sk = 0x03;
 			drv->asc = 0x11;
 			drv->status |= IDESTAT_ERR;
-			drv->error |= IDEERR_UNC;
 			sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_NOERROR;
 			senderror(drv);
 			TRACEOUT(("atapicmd: EDC/ECC error detected at sector %d", drv->sector));
@@ -717,7 +719,6 @@ void atapi_dataread(IDEDRV drv) {
 		drv->sk = 0x03;
 		drv->asc = 0x11;
 		drv->status |= IDESTAT_ERR;
-		drv->error |= IDEERR_UNC;
 		sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_NOERROR;
 		senderror(drv);
 		return;
@@ -753,7 +754,7 @@ void atapi_dataread(IDEDRV drv) {
 }
 #endif
 
-void atapi_dataread_end(IDEDRV drv) {
+static void atapi_dataread_cd_end(IDEDRV drv, UINT size) {
 	SXSIDEV	sxsi;
 	sxsi = sxsi_getptr(drv->sxsidrv);
 
@@ -761,16 +762,16 @@ void atapi_dataread_end(IDEDRV drv) {
 	drv->nsectors--;
 
 	drv->sc = IDEINTR_IO;
-	drv->cy = 2048;
+	drv->cy = (UINT16)size;
 	drv->status &= ~(IDESTAT_DMRD|IDESTAT_SERV|IDESTAT_CHK);
 	drv->status |= IDESTAT_DRQ;
 	drv->error = 0;
 	ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_NO_SENSE);
 	drv->asc = ATAPI_ASC_NO_ADDITIONAL_SENSE_INFORMATION;
 	drv->bufdir = IDEDIR_IN;
-	drv->buftc = (drv->nsectors)?IDETC_ATAPIREAD:IDETC_TRANSFEREND;
+	drv->buftc = (drv->nsectors)?IDETC_ATAPIREADCD:IDETC_TRANSFEREND;
 	drv->bufpos = 0;
-	drv->bufsize = 2048;
+	drv->bufsize = size;
 	
 	if(np2cfg.usecdecc && (sxsi->cdflag_ecc & CD_ECC_BITMASK)==CD_ECC_RECOVERED){
 		drv->status |= IDESTAT_CORR;
@@ -785,147 +786,138 @@ void atapi_dataread_end(IDEDRV drv) {
 		ideio.bank[0] = ideio.bank[1] | 0x80;			// ????
 		pic_setirq(IDE_IRQ);
 	}
-#if defined(_WINDOWS)
-	atapi_dataread_error = -1;
-#endif
 }
-void atapi_dataread_errorend(IDEDRV drv) {
-	SXSIDEV	sxsi;
-	sxsi = sxsi_getptr(drv->sxsidrv);
-	
-	drv->status &= ~(IDESTAT_DRQ);
-
-	ATAPI_SET_SENSE_KEY(drv, ATAPI_SK_ILLEGAL_REQUEST);
-	drv->asc = 0x21;
-	sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_NOERROR;
-	senderror(drv);
-	TRACEOUT(("atapicmd: read error at sector %d", drv->sector));
-#if defined(_WINDOWS)
-	atapi_dataread_error = -1;
-#endif
-}
-
 static void atapi_cmd_read(IDEDRV drv, UINT32 lba, UINT32 nsec) {
 
 	drv->sector = lba;
 	drv->nsectors = nsec;
 	atapi_dataread(drv);
 }
-static void atapi_cmd_read_cd(IDEDRV drv, UINT32 lba, UINT32 nsec) {
-	
-	int i;
-	SXSIDEV	sxsi;
-	CDTRK	trk;
-	UINT	tracks;
-	UINT8 *bufptr;
-	UINT bufsize;
+//	READ CDのExpected Sector Typeに対応するセクタ種別
+static UINT8 atapi_read_cd_type(const UINT8 *rawdata, BOOL audio) {
+	if (audio) return(1);
+	if (rawdata[15] == 1) return(2);
+	if (rawdata[15] == 2) {
+		if (memcmp(rawdata + 16, rawdata + 20, 4)) return(3);
+		return((rawdata[18] & 0x20) ? 5 : 4);
+	}
+	return(0);
+}
 
+//	セクタ形式に応じて要求されたフィールドを取り出す
+static UINT atapi_read_cd_pack(UINT8 *buf, const UINT8 *rawdata, UINT8 type, UINT8 flags) {
+	UINT size = 0;
+	UINT data_offset, data_size, edc_size;
+
+	if (!(flags & 0xf8)) return(0);
+	if (type == 1) {
+		memcpy(buf, rawdata, 2352);
+		return(2352);
+	}
+	//	MODE1、MODE2 Formless、XA Form 1/2
+	data_offset = (type >= 4) ? 24 : 16;
+	data_size = (type == 3) ? 2336 : ((type == 5) ? 2328 : 2048);
+	edc_size = (type == 2) ? 288 : ((type == 4) ? 280 : 0);
+	if ((flags & 0x80) && (flags & 0x20)) {
+		memcpy(buf + size, rawdata, 12);
+		size += 12;
+	}
+	if (flags & 0x20) {
+		memcpy(buf + size, rawdata + 12, 4);
+		size += 4;
+	}
+	if (flags & 0x40) {
+		if (type >= 4) {
+			memcpy(buf + size, rawdata + 16, 8);
+			size += 8;
+		}
+		else if (!(flags & 0x10)) {
+			//	サブヘッダが存在しない場合の従来の応答
+			memset(buf + size, 0, 8);
+			size += 8;
+		}
+	}
+	if (flags & 0x10) {
+		memcpy(buf + size, rawdata + data_offset, data_size);
+		size += data_size;
+	}
+	if ((flags & 0x08) && edc_size) {
+		memcpy(buf + size, rawdata + data_offset + data_size, edc_size);
+		size += edc_size;
+	}
+	return(size);
+}
+
+void atapi_dataread_cd(IDEDRV drv) {
+	SXSIDEV sxsi;
+	CDTRK trk;
+	UINT i, tracks, size;
 	UINT8 rawdata[2352];
+	UINT8 expected, flags, type;
+	BOOL audio;
 
-	UINT8 hassync;
-	UINT8 hashead;
-	UINT8 hassubhead;
-	UINT8 hasdata;
-	UINT8 hasedcecc;
-
-	UINT16 isCDDA = 1;
-	
-#if defined(_WINDOWS)
-	atapi_thread_drv = drv;
-#endif
-	sxsi = sxsi_getptr(drv->sxsidrv);
-
-	hassync = (drv->buf[9] & 0x80) ? 1 : 0;
-	hassubhead = (drv->buf[9] & 0x40) ? 1 : 0;
-	hashead = (drv->buf[9] & 0x20) ? 1 : 0;
-	hasdata = (drv->buf[9] & 0x10) ? 1 : 0;
-	hasedcecc = (drv->buf[9] & 0x08) ? 1 : 0;
-
-	drv->sector = lba;
-	drv->nsectors = nsec;
-	
-	// エラー処理目茶苦茶～
-	if (drv->nsectors == 0) {
+	if (!atapi_check_media(drv, TRUE)) return;
+	if (!drv->nsectors) {
 		cmddone(drv);
 		return;
 	}
-
+	sxsi = sxsi_getptr(drv->sxsidrv);
+	expected = (UINT8)((drv->atapi_readcd >> 10) & 7);
+	flags = (UINT8)drv->atapi_readcd;
+	if (expected > 5) {
+		atapi_media_error(drv, ATAPI_SK_ILLEGAL_REQUEST, ATAPI_ASC_INVALID_FIELD_IN_CDB);
+		return;
+	}
+	if (!(flags & 0xf8)) {
+		cmddone(drv);
+		return;
+	}
 	sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_NOERROR;
-	
 	trk = sxsicd_gettrk(sxsi, &tracks);
 	for (i = 0; i < tracks; i++) {
-		if (trk[i].str_sec <= (UINT32)drv->sector && (UINT32)drv->sector <= trk[i].end_sec) {
-			isCDDA = (trk[i].adr_ctl == TRACKTYPE_AUDIO);
-			break;
-		}
+		if (trk[i].str_sec <= drv->sector && drv->sector <= trk[i].end_sec) break;
 	}
-	
-	if(isCDDA){
-		// Audio
-		if (sxsicd_readraw(sxsi, drv->sector, drv->buf) != SUCCESS) {
-			atapi_dataread_errorend(drv);
-			return;
-		}
-		bufsize = 2352;
-	}else{
-		// 条件がかなり複雑。
-		// ATAPI CD-ROM Specificationの
-		// Table 99 - Number of Bytes Returned Based on Data Selection Field
-		// を参照
-
-		// MODE1決め打ち
-		if (sxsicd_readraw(sxsi, drv->sector, rawdata) != SUCCESS) {
-			atapi_dataread_errorend(drv);
-			return;
-		}
-
-		bufsize = 0;
-		bufptr = drv->buf;
-		if (hassync){
-			if(hashead){
-				// Headerがいるときだけ有効
-				memcpy(bufptr, rawdata, 12);
-				bufptr += 12;
-				bufsize += 12;
-			}
-		}
-		if (hashead){
-			memcpy(bufptr, rawdata + 12, 4);
-			bufptr += 4;
-			bufsize += 4;
-		}
-		if (hassubhead){
-			// MODE1（本来ないが、User Dataが無いときだけ特例で書く）
-			if(!hasdata){
-				memset(bufptr, 0, 8);
-				bufptr += 8;
-				bufsize += 8;
-
-			}
-
-			//// XA
-			//memcpy(bufptr, rawdata + 12 + 4, 8);
-
-			//bufptr += 8;
-			//bufsize += 8;
-		}
-		if (hasdata){
-			memcpy(bufptr, rawdata + 12 + 4, 2048);
-			bufptr += 2048;
-			bufsize += 2048;
-		}
-		if (hasedcecc){
-			// MODE1: EDC (4) + Reserved (8) + ECC (276)
-			memcpy(bufptr, rawdata + 12 + 4 + 2048, 288);
-			bufptr += 288;
-			bufsize += 288;
-		}
+	if (i == tracks || sxsicd_readraw(sxsi, drv->sector, rawdata) != SUCCESS) {
+		atapi_media_error(drv, ATAPI_SK_ILLEGAL_REQUEST, 0x21);
+		return;
 	}
-	
-	atapi_dataread_end(drv);
-	
-	drv->bufsize = bufsize;
-	drv->cy = bufsize;
+	audio = (trk[i].adr_ctl == TRACKTYPE_AUDIO);
+	type = atapi_read_cd_type(rawdata, audio);
+#ifdef SUPPORT_KAI_IMAGES
+	//	EDC不一致の場合はデータを転送せず読み出しエラーを返す
+	if (!audio && np2cfg.usecdecc && !cddfile_check_raw_edc(rawdata)) {
+		atapi_media_error(drv, ATAPI_SK_MEDIUM_ERROR, 0x11);
+		TRACEOUT(("atapicmd: EDC/ECC error detected at sector %d", drv->sector));
+		return;
+	}
+#endif
+	//	EDC検査無効時は、形式不明でも全RAWデータをそのまま取得できる
+	if (!type && !expected && !np2cfg.usecdecc && (flags & 0xf8) == 0xf8) {
+		memcpy(drv->buf, rawdata, 2352);
+		atapi_dataread_cd_end(drv, 2352);
+		return;
+	}
+	if (!type || (expected && expected != type)) {
+		atapi_media_error(drv, ATAPI_SK_ILLEGAL_REQUEST, 0x64);
+		return;
+	}
+	size = atapi_read_cd_pack(drv->buf, rawdata, type, flags);
+	if (!size) {
+		cmddone(drv);
+		return;
+	}
+	atapi_dataread_cd_end(drv, size);
+}
+
+static void atapi_cmd_read_cd(IDEDRV drv, UINT32 lba, UINT32 nsec) {
+#if defined(_WINDOWS)
+	atapi_dataread_asyncwait(INFINITE);
+#endif
+	//	コマンドバッファは転送データで上書きされるので選択条件を保存
+	drv->atapi_readcd = ((UINT16)drv->buf[1] << 8) | drv->buf[9];
+	drv->sector = lba;
+	drv->nsectors = nsec;
+	atapi_dataread_cd(drv);
 }
 
 static void atapi_cmd_read_cd_msf(IDEDRV drv) {

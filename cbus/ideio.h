@@ -47,7 +47,7 @@ typedef struct {
 	UINT32	sector;		// アクセスセクタ (LBA)
 	UINT32	nsectors;	// 総セクタ数
 	UINT16	secsize;	// セクタサイズ
-	UINT16	dmy;
+	UINT16	atapi_readcd;	// READ CD: byte 1, byte 9
 
 	// buffer management
 	UINT	bufpos;
@@ -101,6 +101,7 @@ enum {
 
 	IDETC_TRANSFEREND	= 0,
 	IDETC_ATAPIREAD		= 1,
+	IDETC_ATAPIREADCD	= 2,
 
 	IDETC_NOBIOS        = 0,
 	IDETC_BIOS			= 1

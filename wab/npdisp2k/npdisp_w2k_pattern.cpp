@@ -74,9 +74,9 @@ int npdisp_w2k_patternLoad(UINT32 brushObjAddr, NPDISP_W2K_PATTERN *pattern)
 	UINT32 xlateBytes;
 
 	if (!brushObjAddr || !pattern) return 0;
-	npdisp_w2k_guestRead(brushObjAddr, &brush, sizeof(brush));
+	if (!npdisp_w2k_guestRead(brushObjAddr, &brush, sizeof(brush))) return 0;
 	if (brush.iSolidColor != 0xffffffffUL || brush.pvRbrush == 0) return 0;
-	npdisp_w2k_guestRead(brush.pvRbrush, &header, sizeof(header));
+	if (!npdisp_w2k_guestRead(brush.pvRbrush, &header, sizeof(header))) return 0;
 	targetFormat = npdisp_w2k_patternTargetFormat();
 	if (header.signature != NPDISP_W2K_RBRUSH_SIGNATURE || header.size < sizeof(header) || header.size > NPDISP_W2K_PATTERN_MAX_SIZE ||
 		header.width == 0 || header.height == 0 || header.targetFormat != targetFormat || header.patternStride <= 0 || header.maskSize != 0) return 0;
@@ -95,7 +95,7 @@ int npdisp_w2k_patternLoad(UINT32 brushObjAddr, NPDISP_W2K_PATTERN *pattern)
 	else if (header.patternFormat != targetFormat) return 0;
 
 	pattern->storage.resize(header.size);
-	npdisp_w2k_guestRead(brush.pvRbrush, &pattern->storage[0], header.size);
+	if (!npdisp_w2k_guestRead(brush.pvRbrush, &pattern->storage[0], header.size)) return 0;
 	pattern->width = header.width;
 	pattern->height = header.height;
 	pattern->format = header.patternFormat;

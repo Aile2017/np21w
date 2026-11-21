@@ -27,9 +27,9 @@ static void trace_fmt_exF(const char* fmt, ...)
 #define	TRACEOUT11(s)	(void)s
 #endif	/* 1 */
 
-void npdisp_w2k_guestRead(UINT32 vaddr, void *buffer, UINT32 size);
-void npdisp_w2k_guestReadStrided(UINT32 vaddr, SINT32 srcStride, void *buffer, UINT32 dstStride, UINT32 rowBytes, UINT32 rows);
-void npdisp_w2k_guestWrite(UINT32 vaddr, const void *buffer, UINT32 size);
+int npdisp_w2k_guestRead(UINT32 vaddr, void *buffer, UINT32 size);
+int npdisp_w2k_guestReadStrided(UINT32 vaddr, SINT32 srcStride, void *buffer, UINT32 dstStride, UINT32 rowBytes, UINT32 rows);
+int npdisp_w2k_guestWrite(UINT32 vaddr, const void *buffer, UINT32 size);
 UINT32 npdisp_w2k_hostCallBitBlt(UINT32 requestAddr);
 UINT32 npdisp_w2k_hostCallOutput(UINT32 requestAddr);
 UINT32 npdisp_w2k_hostCallGdi(UINT32 requestAddr);

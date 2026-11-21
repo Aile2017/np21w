@@ -133,7 +133,7 @@ static int npdisp_w2k_textBuildClipRects(UINT32 requestAddr, const NPDISP_W2K_HO
 	if (request->clipRectOffset < sizeof(*request) || request->clipRectOffset > request->size ||
 		clipBytes > request->size - request->clipRectOffset) return 0;
 	guestRects.resize(request->clipRectCount);
-	npdisp_w2k_guestRead(requestAddr + request->clipRectOffset, &guestRects[0], (UINT32)clipBytes);
+	if (!npdisp_w2k_guestRead(requestAddr + request->clipRectOffset, &guestRects[0], (UINT32)clipBytes)) return 0;
 	for (i = 0; i < request->clipRectCount; ++i) {
 		clipRect.left = guestRects[i].left + request->dstOriginX;
 		clipRect.top = guestRects[i].top + request->dstOriginY;
@@ -305,9 +305,9 @@ static int npdisp_w2k_textPrepareGlyph(const NPDISP_W2K_GUEST_GLYPHPOS *glyph, S
 	UINT64 glyphBytes;
 
 	if (!glyph || !prepared || !totalBytes || glyph->pgdf == 0) return 0;
-	npdisp_w2k_guestRead(glyph->pgdf, &glyphBitsAddr, sizeof(glyphBitsAddr));
+	if (!npdisp_w2k_guestRead(glyph->pgdf, &glyphBitsAddr, sizeof(glyphBitsAddr))) return 0;
 	if (glyphBitsAddr == 0) return 0;
-	npdisp_w2k_guestRead(glyphBitsAddr, &header, sizeof(header));
+	if (!npdisp_w2k_guestRead(glyphBitsAddr, &header, sizeof(header))) return 0;
 	if (header.width < 0 || header.height < 0 || header.width > NPDISP_W2K_TEXT_MAX_GLYPH_WIDTH ||
 		header.height > NPDISP_W2K_TEXT_MAX_GLYPH_HEIGHT) return 0;
 	prepared->baseX = glyph->x + header.originX + originX;
@@ -320,8 +320,9 @@ static int npdisp_w2k_textPrepareGlyph(const NPDISP_W2K_GUEST_GLYPHPOS *glyph, S
 	glyphBytes = (UINT64)prepared->rowBytes * (UINT32)header.height;
 	if (glyphBytes == 0 || glyphBytes > NPDISP_W2K_TEXT_MAX_GLYPH_BYTES ||
 		*totalBytes > NPDISP_W2K_TEXT_MAX_TOTAL_BYTES - glyphBytes) return 0;
+	if ((UINT64)glyphBitsAddr + sizeof(header) + glyphBytes > 0x100000000ULL) return 0;
 	prepared->bits.resize((size_t)glyphBytes);
-	npdisp_w2k_guestRead(glyphBitsAddr + sizeof(header), &prepared->bits[0], (UINT32)glyphBytes);
+	if (!npdisp_w2k_guestRead(glyphBitsAddr + sizeof(header), &prepared->bits[0], (UINT32)glyphBytes)) return 0;
 	*totalBytes += glyphBytes;
 	return 1;
 }
@@ -475,7 +476,7 @@ UINT32 npdisp_w2k_hostCallText(UINT32 requestAddr, const NPDISP_W2K_HOSTCALL_GDI
 	if (clipRects.empty()) return NPDISP_W2K_HOSTCALL_OK;
 	if (request->arg[4] != 0) {
 		if (request->value[3] == 0xffffffffUL) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-		npdisp_w2k_guestRead(request->arg[4], &guestOpaque, sizeof(guestOpaque));
+		if (!npdisp_w2k_guestRead(request->arg[4], &guestOpaque, sizeof(guestOpaque))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		opaque.left = guestOpaque.left + request->dstOriginX;
 		opaque.top = guestOpaque.top + request->dstOriginY;
 		opaque.right = guestOpaque.right + request->dstOriginX;
@@ -484,8 +485,8 @@ UINT32 npdisp_w2k_hostCallText(UINT32 requestAddr, const NPDISP_W2K_HOSTCALL_GDI
 	if (glyphCount != 0) {
 		if (glyphs.size() < glyphCount) glyphs.resize(glyphCount);
 		if (preparedGlyphs.size() < glyphCount) preparedGlyphs.resize(glyphCount);
-		if (request->value[4] & NPDISP_W2K_GDI_TEXT_DIRECT_GLYPHS) npdisp_w2k_guestRead(request->arg[10], &glyphs[0], (UINT32)glyphBytes);
-		else npdisp_w2k_guestRead(requestAddr + request->extraOffset, &glyphs[0], (UINT32)glyphBytes);
+		UINT32 glyphAddr = (request->value[4] & NPDISP_W2K_GDI_TEXT_DIRECT_GLYPHS) ? request->arg[10] : requestAddr + request->extraOffset;
+		if (!npdisp_w2k_guestRead(glyphAddr, &glyphs[0], (UINT32)glyphBytes)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		for (i = 0; i < glyphCount; ++i) {
 			if (!npdisp_w2k_textPrepareGlyph(&glyphs[i], request->dstOriginX, request->dstOriginY,
 				&preparedGlyphs[i], &totalGlyphBytes)) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;

@@ -533,6 +533,35 @@ static BOOL cddfile_check_mode1_edc(const UINT8 *sector) {
 	return(calcCRC((UINT8 *)sector, 0x810) == LOADINTELDWORD(sector + 0x810));
 }
 
+//	MODE2 XAのEDCを検査する（2336バイトのヘッダ以降）
+static BOOL cddfile_check_mode2_edc(const UINT8 *data) {
+	UINT32 edc;
+	UINT len;
+
+	//	サブヘッダが一致しない場合は従来通りFormlessとして扱う
+	if (memcmp(data, data + 4, 4)) {
+		return(TRUE);
+	}
+	len = (data[2] & 0x20) ? 0x91c : 0x808;
+	edc = LOADINTELDWORD(data + len);
+	//	Form 2はEDC省略時に0が記録される
+	if ((data[2] & 0x20) && !edc) {
+		return(TRUE);
+	}
+	return(calcCRC((UINT8 *)data, len) == edc);
+}
+
+//	RAWデータセクタのEDC検査（CD-DAは呼び出し側で除外）
+BOOL cddfile_check_raw_edc(const UINT8 *sector) {
+	if (sector[15] == 1) {
+		return(cddfile_check_mode1_edc(sector));
+	}
+	if (sector[15] == 2) {
+		return(cddfile_check_mode2_edc(sector + 16));
+	}
+	return(FALSE);
+}
+
 //	イメージファイル内全トラックセクタ長2352byte用(ECCチェック有効)
 REG8 sec2352_read_with_ecc(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 	
@@ -739,17 +768,21 @@ REG8 sec_read(SXSIDEV sxsi, FILEPOS pos, UINT8 *buf, UINT size) {
 					sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_ERROR;
 				}
 			}
-			else {
-				if ((sector_mode == CDSECTORMODE_MODE2) && ((sector_size == 2352) || (sector_size == 2336))) {
-					UINT8 subhead[8];
-					FILEPOS subpos;
+			else if ((sector_mode == CDSECTORMODE_MODE2) && ((sector_size == 2352) || (sector_size == 2336))) {
+				UINT8 rawdata[2352];
+				UINT8 *data;
 
-					subpos = fpos + ((sector_size == 2352) ? 16 : 0);
-					if ((file_seek(fh, subpos, FSEEK_SET) != subpos) || (file_read(fh, subhead, sizeof(subhead)) != sizeof(subhead))) {
-						return(0xd0);
-					}
-					data_offset = (!memcmp(subhead, subhead + 4, 4)) ? ((sector_size == 2352) ? 24 : 8) : ((sector_size == 2352) ? 16 : 0);
+				if ((file_seek(fh, fpos, FSEEK_SET) != fpos) || (file_read(fh, rawdata, sector_size) != sector_size)) {
+					return(0xd0);
 				}
+				data = rawdata + ((sector_size == 2352) ? 16 : 0);
+				data_offset = memcmp(data, data + 4, 4) ? 0 : 8;
+				memcpy(buf, data + data_offset, rsize);
+				if (!cddfile_check_mode2_edc(data)) {
+					sxsi->cdflag_ecc = (sxsi->cdflag_ecc & ~CD_ECC_BITMASK) | CD_ECC_ERROR;
+				}
+			}
+			else {
 				fpos += data_offset;
 				if (file_seek(fh, fpos, FSEEK_SET) != fpos) {
 					return(0xd0);

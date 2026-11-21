@@ -510,96 +510,46 @@ void npdisp_w2k_shutdown(void)
 #endif
 }
 
-void npdisp_w2k_guestRead(UINT32 vaddr, void *buffer, UINT32 size)
+int npdisp_w2k_guestRead(UINT32 vaddr, void *buffer, UINT32 size)
 {
-	UINT32 transferSize = size;
 #if defined(CPUCORE_IA32)
-	cpu_lmemoryreads(vaddr, buffer, size, CPU_PAGE_READ_DATA | CPU_MODE_SUPERVISER);
+	if (!npdisp_w2k_readLinearRam(vaddr, buffer, size)) return 0;
 #else
-	UINT8 *ptr = (UINT8 *)buffer;
-
-	while (size >= 4) {
-		*((UINT32 *)ptr) = cpu_kmemoryread_d(vaddr);
-		vaddr += 4;
-		ptr += 4;
-		size -= 4;
-	}
-	while (size != 0) {
-		*ptr++ = cpu_kmemoryread(vaddr++);
-		size--;
-	}
+	return 0;
 #endif
-	npdisp_w2k_traceGuestRead(transferSize, transferSize / 4);
-	CPU_REMCLOCK -= (SINT32)(transferSize / 4);
+	npdisp_w2k_traceGuestRead(size, size / 4);
+	CPU_REMCLOCK -= (SINT32)(size / 4);
+	return 1;
 }
 
-void npdisp_w2k_guestReadStrided(UINT32 vaddr, SINT32 srcStride, void *buffer, UINT32 dstStride, UINT32 rowBytes, UINT32 rows)
+int npdisp_w2k_guestReadStrided(UINT32 vaddr, SINT32 srcStride, void *buffer, UINT32 dstStride, UINT32 rowBytes, UINT32 rows)
 {
+#if defined(CPUCORE_IA32)
 	UINT64 totalSize = (UINT64)rowBytes * rows;
 	UINT8 *dst = (UINT8 *)buffer;
-	UINT32 y;
-
-	if (!buffer || rowBytes == 0 || rows == 0) return;
-	for (y = 0; y < rows; ++y) {
-		UINT32 addr = vaddr;
-		UINT8 *out = dst;
-		UINT32 remain = rowBytes;
-#if defined(CPUCORE_IA32) && defined(USE_CPU_BULKREP)
-		while (remain != 0) {
-			UINT32 chunk = 0x1000 - (addr & 0x0fff);
-			UINT8 *host;
-			if (chunk > remain) chunk = remain;
-			host = cpu_lmemory_get_direct_host_ptr(addr, chunk, CPU_PAGE_READ_DATA | CPU_MODE_SUPERVISER);
-			if (host) memcpy(out, host, chunk);
-			else cpu_lmemoryreads(addr, out, chunk, CPU_PAGE_READ_DATA | CPU_MODE_SUPERVISER);
-			addr += chunk;
-			out += chunk;
-			remain -= chunk;
-		}
-#elif defined(CPUCORE_IA32)
-		cpu_lmemoryreads(addr, out, remain, CPU_PAGE_READ_DATA | CPU_MODE_SUPERVISER);
-#else
-		while (remain >= 4) {
-			*((UINT32 *)out) = cpu_kmemoryread_d(addr);
-			addr += 4;
-			out += 4;
-			remain -= 4;
-		}
-		while (remain != 0) {
-			*out++ = cpu_kmemoryread(addr++);
-			remain--;
-		}
-#endif
-		vaddr = (UINT32)((SINT64)(UINT32)vaddr + srcStride);
-		dst += dstStride;
+	if (!buffer || !rowBytes || !rows || totalSize > 0xffffffffULL || dstStride < rowBytes) return 0;
+	if (srcStride > 0 && (UINT32)srcStride == rowBytes && dstStride == rowBytes) {
+		if (!npdisp_w2k_readLinearRam(vaddr, dst, (UINT32)totalSize)) return 0;
 	}
-	if (totalSize > 0xffffffffULL) totalSize = 0xffffffffULL;
-	/* Win2000 GDI‘¤‚ÅÁ”ïÏ‚Ý‚Ìˆ—•ª‚ðl—¶‚µ‚Ä“]‘—•‰‰×‚Ì‚Ý‰ÁŽZ‚·‚éB */
+	else if (!npdisp_w2k_readLinearRows(vaddr, srcStride, dst, dstStride, rowBytes, rows)) return 0;
 	npdisp_w2k_traceGuestRead((UINT32)totalSize, (UINT32)(totalSize / 64));
 	CPU_REMCLOCK -= (SINT32)(totalSize / 64);
+	return 1;
+#else
+	return 0;
+#endif
 }
 
-void npdisp_w2k_guestWrite(UINT32 vaddr, const void *buffer, UINT32 size)
+int npdisp_w2k_guestWrite(UINT32 vaddr, const void *buffer, UINT32 size)
 {
-	UINT32 transferSize = size;
 #if defined(CPUCORE_IA32)
-	cpu_lmemorywrites(vaddr, (void *)buffer, size, CPU_PAGE_WRITE_DATA | CPU_MODE_SUPERVISER);
+	if (!npdisp_w2k_writeLinearRam(vaddr, buffer, size)) return 0;
 #else
-	const UINT8 *ptr = (const UINT8 *)buffer;
-
-	while (size >= 4) {
-		cpu_kmemorywrite_d(vaddr, *((const UINT32 *)ptr));
-		vaddr += 4;
-		ptr += 4;
-		size -= 4;
-	}
-	while (size != 0) {
-		cpu_kmemorywrite(vaddr++, *ptr++);
-		size--;
-	}
+	return 0;
 #endif
-	npdisp_w2k_traceGuestWrite(transferSize, transferSize / 4);
-	CPU_REMCLOCK -= (SINT32)(transferSize / 4);
+	npdisp_w2k_traceGuestWrite(size, size / 4);
+	CPU_REMCLOCK -= (SINT32)(size / 4);
+	return 1;
 }
 
 void npdisp_w2k_chargePixels(UINT64 pixels)
@@ -613,21 +563,34 @@ void npdisp_w2k_chargePixels(UINT64 pixels)
 	CPU_REMCLOCK -= (SINT32)clocks;
 }
 
-static void npdisp_w2k_syncGuestCpu(void)
+static int npdisp_w2k_syncGuestCpu(void)
 {
 #if defined(SUPPORT_IA32_HAXM)
-	if (np2hax.enable && np2hax.hVMDevice &&
-		i386haxfunc_vcpu_getREGs(&np2haxstat.state) == SUCCESS) {
+	if (np2hax.enable && np2haxcore.running && !np2hax.emumode) {
+		if (!np2hax.hVMDevice || i386haxfunc_vcpu_getREGs(&np2haxstat.state) != SUCCESS) return 0;
 		np2haxstat.update_regs = 0;
 		ia32hax_copyregHAXtoNP2();
+		return 1;
 	}
 #endif
 #if defined(SUPPORT_IA32_WHPX)
-	if (np2whpx.enable && np2whpx.created &&
-		i386whpxfunc_get_registers(&np2whpxstat.state) == SUCCESS) {
+	if (np2whpx.enable && np2whpxcore.running) {
+		if (!np2whpx.created || i386whpxfunc_get_registers(&np2whpxstat.state) != SUCCESS) return 0;
 		np2whpxstat.update_regs = 0;
 		ia32whpx_copyregWHPXtoNP2();
+		return 1;
 	}
+#endif
+	// The software core already owns the current CPU state.
+	return 1;
+}
+
+static int npdisp_w2k_guestWritable(UINT32 addr, UINT32 size)
+{
+#if defined(CPUCORE_IA32)
+	return npdisp_w2k_checkLinearRows(addr, 0, size, 1, 1);
+#else
+	return 0;
 #endif
 }
 
@@ -746,15 +709,17 @@ static UINT32 npdisp_w2k_hostCallTest(UINT32 requestAddr)
 	NPDISP_W2K_HOSTCALL_TEST_REQUEST request;
 	NPDISP_W2K_HOSTCALL_TEST_TARGET target;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size != sizeof(request) || request.targetAddr == 0) {
 		return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	}
-	npdisp_w2k_guestRead(request.targetAddr, &target, sizeof(target));
+	if (!npdisp_w2k_guestRead(request.targetAddr, &target, sizeof(target))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (!npdisp_w2k_guestWritable(requestAddr, sizeof(request)) ||
+		!npdisp_w2k_guestWritable(request.targetAddr, sizeof(target))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	request.result = request.value ^ NPDISP_W2K_HOSTCALL_TEST_XOR;
 	target.result = target.value ^ NPDISP_W2K_HOSTCALL_TEST_XOR;
-	npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request));
-	npdisp_w2k_guestWrite(request.targetAddr, &target, sizeof(target));
+	if (!npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+	if (!npdisp_w2k_guestWrite(request.targetAddr, &target, sizeof(target))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	return NPDISP_W2K_HOSTCALL_OK;
 }
 
@@ -762,11 +727,11 @@ static UINT32 npdisp_w2k_hostCallGetInfo(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_INFO_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size != sizeof(request)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	request.modeCount = NPDISP_W2K_MODE_COUNT;
 	request.currentMode = npdisp_w2k_currentMode;
-	npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	return NPDISP_W2K_HOSTCALL_OK;
 }
 
@@ -774,12 +739,12 @@ static UINT32 npdisp_w2k_hostCallGetMode(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_MODE_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size != sizeof(request) || request.modeIndex >= NPDISP_W2K_MODE_COUNT) {
 		return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	}
 	request.mode = npdisp_w2k_modes[request.modeIndex];
-	npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	return NPDISP_W2K_HOSTCALL_OK;
 }
 
@@ -787,7 +752,7 @@ static UINT32 npdisp_w2k_hostCallSetMode(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_SET_MODE_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size != sizeof(request) || request.modeIndex >= NPDISP_W2K_MODE_COUNT) {
 		return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	}
@@ -798,7 +763,7 @@ static UINT32 npdisp_w2k_hostCallPointer(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_POINTER_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size < sizeof(request) || request.command != NPDISP_W2K_HOSTCALL_POINTER) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.operation == NPDISP_W2K_POINTER_SET_ALPHA) {
 		NPDISP_W2K_CURSOR_SHAPE shape;
@@ -806,13 +771,13 @@ static UINT32 npdisp_w2k_hostCallPointer(UINT32 requestAddr)
 			request.dataSize != request.size - request.dataOffset || request.dataSize < sizeof(shape) ||
 			(UINT64)requestAddr + request.size > 0x100000000ULL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		UINT32 shapeAddr = requestAddr + request.dataOffset;
-		if (!npdisp_readLinearMemory(&shape, shapeAddr, sizeof(shape)) ||
+		if (!npdisp_w2k_guestRead(shapeAddr, &shape, sizeof(shape)) ||
 			!shape.width || !shape.height || shape.width > NPDISP_W2K_POINTER_MAX_WIDTH || shape.height > NPDISP_W2K_POINTER_MAX_HEIGHT ||
 			shape.hotX >= shape.width || shape.hotY >= shape.height || shape.color != NPDISP_W2K_POINTER_ALPHA_FORMAT ||
 			shape.widthBytes != shape.width * 4U || request.dataSize != sizeof(shape) + (UINT32)shape.widthBytes * shape.height ||
 			(request.x >= 0 && (request.x >= 0xffff || request.y < 0 || request.y >= 0xffff))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		std::vector<UINT8> pixels((UINT32)shape.widthBytes * shape.height);
-		if (!npdisp_readLinearMemory(&pixels[0], shapeAddr + sizeof(shape), (int)pixels.size()) ||
+		if (!npdisp_w2k_guestRead(shapeAddr + sizeof(shape), &pixels[0], (UINT32)pixels.size()) ||
 			!npdisp_setAlphaCursor(shape.width, shape.height, shape.hotX, shape.hotY,
 				request.x < 0 ? 0xffff : (UINT16)request.x, request.x < 0 ? 0xffff : (UINT16)request.y, &pixels[0])) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		return NPDISP_W2K_HOSTCALL_OK;
@@ -829,7 +794,7 @@ static UINT32 npdisp_w2k_hostCallPointer(UINT32 requestAddr)
 		if (request.dataOffset < sizeof(request) || request.dataOffset > request.size || request.dataSize > request.size - request.dataOffset || request.dataSize < sizeof(shape)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		if ((UINT64)requestAddr + request.dataOffset + request.dataSize > 0x100000000ULL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		shapeAddr = requestAddr + request.dataOffset;
-		npdisp_w2k_guestRead(shapeAddr, &shape, sizeof(shape));
+		if (!npdisp_w2k_guestRead(shapeAddr, &shape, sizeof(shape))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		if (!shape.width || !shape.height || shape.width > NPDISP_W2K_POINTER_MAX_WIDTH || shape.height > NPDISP_W2K_POINTER_MAX_HEIGHT || (shape.width & 15) != 0 || shape.hotX >= shape.width || shape.hotY >= shape.height) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		maskBpp = shape.color & 0xff;
 		xorBpp = (shape.color >> 8) & 0xff;
@@ -839,6 +804,11 @@ static UINT32 npdisp_w2k_hostCallPointer(UINT32 requestAddr)
 		expected = sizeof(shape) + (UINT64)maskStride * shape.height + (UINT64)xorStride * shape.height;
 		if (expected != request.dataSize || expected > 0xffffffffULL) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		if (request.x >= 0 && (request.x > 0xffff || request.y < 0 || request.y > 0xffff)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+#if defined(CPUCORE_IA32)
+		if (!npdisp.w2kLfb || !npdisp_w2k_checkLinearRows(shapeAddr, 0, request.dataSize, 1, 0)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+#else
+		return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
+#endif
 		npdisp_setCursorLinear(shapeAddr);
 		if (request.x < 0) npdisp_moveCursorAbsolute(0xffff, 0xffff);
 		else npdisp_moveCursorAbsolute((UINT16)request.x, (UINT16)request.y);
@@ -938,14 +908,15 @@ static UINT32 npdisp_w2k_hostCallDirectDraw(UINT32 requestAddr)
 {
 	NPDISP_W2K_HOSTCALL_DDRAW_REQUEST request;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.version != NPDISP_W2K_HOSTCALL_VERSION || request.size != sizeof(request)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (!npdisp.mm_screenPtr || !npdisp.mm_ddOffscreenPtr || npdisp.mm_ddOffscreenSize != NPDISP_W2K_FB_OFFSCREEN_SIZE) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 
+	if (!npdisp_w2k_guestWritable(requestAddr, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.operation == NPDISP_W2K_DDRAW_SETUP) {
 		UINT32 setupInfo;
 
-		if (!request.frameBufferAddr) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		if (!request.frameBufferAddr || (request.dataAddr && !npdisp_w2k_guestWritable(request.dataAddr, sizeof(NPDISP_W2K_DDRAW_CAPS)))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		npdisp.mm_vramLinearAddr = request.frameBufferAddr;
 		npdisp.mm_ddScanoutOffset = 0;
 		npdisp.mm_ddLastScanoutOffset = 0;
@@ -955,7 +926,7 @@ static UINT32 npdisp_w2k_hostCallDirectDraw(UINT32 requestAddr)
 		if (request.dataAddr) {
 			NPDISP_W2K_DDRAW_CAPS caps;
 			npdisp_w2k_getDirectDrawCaps(&caps, setupInfo);
-			npdisp_w2k_guestWrite(request.dataAddr, &caps, sizeof(caps));
+			if (!npdisp_w2k_guestWrite(request.dataAddr, &caps, sizeof(caps))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		}
 		request.callbackId = setupInfo;
 		request.result = 1;
@@ -965,7 +936,7 @@ static UINT32 npdisp_w2k_hostCallDirectDraw(UINT32 requestAddr)
 		request.result = npdisp_dd_dispatchBridge(request.callbackId, request.dataAddr);
 	}
 	else return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
-	npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	return NPDISP_W2K_HOSTCALL_OK;
 }
 
@@ -975,16 +946,17 @@ static UINT32 npdisp_w2k_hostCallDirect3D(UINT32 requestAddr)
 	NPDISP_W2K_HOSTCALL_D3D_REQUEST request;
 	NPDISP_W2K_D3D_CAPS caps;
 
-	npdisp_w2k_guestRead(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestRead(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.Version != NPDISP_W2K_HOSTCALL_VERSION || request.Size != sizeof(request)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (npdisp.acceleration < NPDISP_ACCEL_DIRECT3D || npdisp.bpp < 15) return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 
+	if (!npdisp_w2k_guestWritable(requestAddr, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	if (request.Operation == NPDISP_W2K_D3D_SETUP) {
 		if (!request.DataAddr || request.DataSize < sizeof(caps) || !npdisp_d3d_getW2kCaps(&caps)) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		// rev107 did not request a caps revision (CallbackId == 0).
 		if (request.CallbackId == 0) caps.Version = 0x00010001UL;
 		else if (request.CallbackId != NPDISP_W2K_D3D_CAPS_VERSION) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
-		npdisp_w2k_guestWrite(request.DataAddr, &caps, sizeof(caps));
+		if (!npdisp_w2k_guestWrite(request.DataAddr, &caps, sizeof(caps))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 		request.Result = 1;
 	}
 	else if (request.Operation == NPDISP_W2K_D3D_CALLBACK) {
@@ -994,7 +966,7 @@ static UINT32 npdisp_w2k_hostCallDirect3D(UINT32 requestAddr)
 	}
 	else return NPDISP_W2K_HOSTCALL_UNSUPPORTED;
 
-	npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request));
+	if (!npdisp_w2k_guestWrite(requestAddr, &request, sizeof(request))) return NPDISP_W2K_HOSTCALL_BAD_REQUEST;
 	return NPDISP_W2K_HOSTCALL_OK;
 }
 #endif
@@ -1009,7 +981,11 @@ static void npdisp_w2k_hostCall(UINT32 command)
 		npdisp_w2k_traceHostCall(command, status);
 		return;
 	}
-	npdisp_w2k_syncGuestCpu();
+	if (!npdisp_w2k_syncGuestCpu()) {
+		npdisp_w2k_hostCallStatus = NPDISP_W2K_HOSTCALL_BAD_REQUEST;
+		npdisp_w2k_traceHostCall(command, npdisp_w2k_hostCallStatus);
+		return;
+	}
 	switch (command) {
 	case NPDISP_W2K_HOSTCALL_TEST:
 		status = npdisp_w2k_hostCallTest(npdisp_w2k_hostCallAddr);
